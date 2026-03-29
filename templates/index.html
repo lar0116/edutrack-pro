@@ -1099,7 +1099,7 @@ async function showSectionForm(id=null) {
         </select></div>
       </div>
       <div class="form-row cols-2">
-        <div class="form-group"><label>Professor</label><input id="sf-prof" value="${sec?.professor||(_currentUser.name||'')}"></div>
+        <div class="form-group"><label>Professor</label><input id="sf-prof" value="${sec?.professor||''}"  placeholder="e.g. Mr. Larsen B. Dignos"></div>
         <div class="form-group"><label>Late Threshold (min)</label><input id="sf-late" type="number" value="${sec?.late_threshold||15}" min="1" max="60"></div>
       </div>
     </div>
@@ -1431,7 +1431,7 @@ async function doImport() {
 ══════════════════════════════════════════════════ */
 async function pgRFID(c) {
   if (sem_guard(c)) return;
-  document.getElementById('topbar-actions').innerHTML = `${ctxBadge()} <button class="btn-primary btn-sm" onclick="showRegisterRFID()">➕ Register Card</button>`;
+  document.getElementById('topbar-actions').innerHTML = `${ctxBadge()} <button class="btn-primary btn-sm" id="reg-card-btn" onclick="this.disabled=true;showRegisterRFID().finally(()=>{const b=document.getElementById('reg-card-btn');if(b)b.disabled=false;})">➕ Register Card</button>`;
   const tags = await api('GET', `/api/rfid?sem_id=${_activeSem.id}`).catch(()=>[]);
   c.innerHTML = `
     <div class="card mb-3" style="padding:12px 16px">
@@ -1460,103 +1460,145 @@ async function deleteTag(id) {
 }
 
 async function showRegisterRFID() {
-  const students = await api('GET', `/api/students?sem_id=${_activeSem?.id}`).catch(()=>[]);
-  const noCard = students.filter(s => !s.uid);
-  const nfcBtn = ('NDEFReader' in window) ? `<button class="btn-success btn-sm" id="rr-nfc-btn" onclick="startAdminNFC()" style="white-space:nowrap;flex-shrink:0">📱 NFC</button>` : '';
-
+  // Show modal immediately with loading state
   showModal(`
-    <div class="modal-header"><div class="modal-title">📡 Register RFID Card</div><button class="modal-close" onclick="closeModal()">✕</button></div>
-    <div class="form-group">
-      <label>Select Student *</label>
-      <select id="rr-stud" style="font-size:13px" onchange="onAdminStudentSelect(this)">
-        <option value="">— Choose student —</option>
-        ${noCard.map(s=>`<option value="${s.id}">${s.full_name} · ${s.student_no} · ${s.section_name||'—'}</option>`).join('')}
-      </select>
+    <div class="modal-header">
+      <div class="modal-title">📡 Register RFID Card</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
-    <div id="rr-student" style="background:var(--surface2);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;display:none"></div>
-    <div class="form-group">
-      <label>Card UID</label>
-      <div style="display:flex;gap:8px">
-        <input id="rr-uid" placeholder="Tap NFC / USB reader / type manually" style="flex:1">
-        ${nfcBtn}
+    <div id="rr-loading" style="text-align:center;padding:24px;color:var(--text3)">⏳ Loading students…</div>
+    <div id="rr-body" style="display:none">
+      <div class="form-group">
+        <label>Select Student *</label>
+        <select id="rr-stud" style="font-size:13px;width:100%" onchange="onAdminStudentSelect(this)">
+          <option value="">— Choose student —</option>
+        </select>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px">Only students without a registered card are shown</div>
+      </div>
+      <div id="rr-student-info" style="background:var(--surface2);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;display:none;color:var(--green)"></div>
+      <div class="form-group">
+        <label>Card UID</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="rr-uid" placeholder="Tap NFC / USB reader / or type manually" style="flex:1">
+          <button id="rr-nfc-btn" class="btn-success btn-sm" onclick="startAdminNFC()" style="white-space:nowrap;display:none">📱 NFC</button>
+        </div>
+      </div>
+      <div id="rr-nfc-status" style="font-size:12px;color:var(--accent);min-height:18px;margin-bottom:8px"></div>
+      <div style="font-size:11px;color:var(--text2);padding:8px;background:var(--surface2);border-radius:6px;margin-bottom:4px">
+        💡 <strong>NFC:</strong> Click 📱 NFC button then tap card<br>
+        💡 <strong>USB Reader:</strong> Click outside input then scan
       </div>
     </div>
-    <div id="rr-nfc-status" style="font-size:11px;color:var(--accent);min-height:16px;margin-bottom:6px"></div>
-    <div style="font-size:11px;color:var(--text2);margin-bottom:8px">💡 USB reader: focus outside input field then scan card</div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal()">Cancel</button>
       <button class="btn-primary" onclick="submitAdminRFID()">💾 Register</button>
     </div>`, 'modal-md');
 
-  // USB RFID keyboard emulation listener
-  let buf='', timer;
-  document.addEventListener('keydown', function kl(e){
-    if(document.getElementById('modal-overlay').classList.contains('hidden')){
-      document.removeEventListener('keydown',kl); return;
+  // Load students async
+  try {
+    const students = await api('GET', `/api/students?sem_id=${_activeSem?.id}`);
+    const noCard = students.filter(s => !s.uid);
+
+    const sel = document.getElementById('rr-stud');
+    if (sel) {
+      sel.innerHTML = `<option value="">— Choose student (${noCard.length} without card) —</option>` +
+        noCard.map(s =>
+          `<option value="${s.id}" data-name="${s.full_name}" data-no="${s.student_no}" data-sec="${s.section_name||'—'}">
+            ${s.full_name} · ${s.student_no}
+          </option>`
+        ).join('');
     }
-    const t=e.target;
-    if(t.tagName==='INPUT'||t.tagName==='TEXTAREA') return;
-    if(e.key==='Enter'){
-      if(buf.length>=4){
-        document.getElementById('rr-uid').value = buf;
-        document.getElementById('rr-nfc-status').textContent = '✅ USB card detected: ' + buf;
+
+    // Show NFC button only on Android Chrome
+    if ('NDEFReader' in window) {
+      const nfcBtn = document.getElementById('rr-nfc-btn');
+      if (nfcBtn) nfcBtn.style.display = 'inline-flex';
+    }
+
+    // Hide loading, show body
+    const loading = document.getElementById('rr-loading');
+    const body = document.getElementById('rr-body');
+    if (loading) loading.style.display = 'none';
+    if (body) body.style.display = 'block';
+
+  } catch(e) {
+    const loading = document.getElementById('rr-loading');
+    if (loading) loading.textContent = '❌ Error loading students: ' + e.message;
+  }
+
+  // USB RFID keyboard emulation
+  let buf = '', timer;
+  document.addEventListener('keydown', function kl(e) {
+    if (document.getElementById('modal-overlay').classList.contains('hidden')) {
+      document.removeEventListener('keydown', kl); return;
+    }
+    const t = e.target;
+    if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') return;
+    if (e.key === 'Enter') {
+      if (buf.length >= 4) {
+        const uidInput = document.getElementById('rr-uid');
+        if (uidInput) uidInput.value = buf;
+        const st = document.getElementById('rr-nfc-status');
+        if (st) st.textContent = '✅ USB card detected: ' + buf;
       }
-      buf=''; return;
+      buf = ''; return;
     }
-    if(e.key.length===1){buf+=e.key; clearTimeout(timer); timer=setTimeout(()=>buf='',150);}
+    if (e.key.length === 1) { buf += e.key; clearTimeout(timer); timer = setTimeout(() => buf = '', 150); }
   });
 }
 
 function onAdminStudentSelect(sel) {
-  const el = document.getElementById('rr-student');
-  if (!sel.value) { el.style.display='none'; return; }
-  const txt = sel.options[sel.selectedIndex].text;
-  el.style.display = 'block';
-  el.textContent = '✅ ' + txt;
+  const info = document.getElementById('rr-student-info');
+  if (!sel.value || !info) return;
+  const opt = sel.options[sel.selectedIndex];
+  info.style.display = 'block';
+  info.innerHTML = `✅ <strong>${opt.dataset.name}</strong> &nbsp;·&nbsp; ${opt.dataset.no} &nbsp;·&nbsp; ${opt.dataset.sec}`;
 }
 
 let _adminNFCScanning = false;
 async function startAdminNFC() {
-  const btn = document.getElementById('rr-nfc-btn');
+  const btn    = document.getElementById('rr-nfc-btn');
   const status = document.getElementById('rr-nfc-status');
   if (_adminNFCScanning) {
     _adminNFCScanning = false;
-    if (btn) btn.textContent = '📱 NFC';
+    if (btn) btn.innerHTML = '📱 NFC';
     if (status) status.textContent = '';
     return;
   }
   try {
     _adminNFCScanning = true;
-    if (btn) btn.textContent = '⏹ Stop';
+    if (btn) btn.innerHTML = '⏹ Stop';
     if (status) status.textContent = '📡 Hold card near phone…';
     const reader = new NDEFReader();
     await reader.scan();
     reader.onreading = (e) => {
       if (!_adminNFCScanning) return;
       _adminNFCScanning = false;
-      if (btn) btn.textContent = '📱 NFC';
-      const uid = e.serialNumber.replace(/:/g,'').toUpperCase();
-      document.getElementById('rr-uid').value = uid;
+      if (btn) btn.innerHTML = '📱 NFC';
+      const uid = e.serialNumber.replace(/:/g, '').toUpperCase();
+      const uidInput = document.getElementById('rr-uid');
+      if (uidInput) uidInput.value = uid;
       if (status) status.textContent = '✅ Card detected: ' + uid;
     };
   } catch(e) {
     _adminNFCScanning = false;
-    if (btn) btn.textContent = '📱 NFC';
-    if (status) status.textContent = '⚠️ NFC error: ' + e.message;
+    if (btn) btn.innerHTML = '📱 NFC';
+    if (status) status.textContent = '⚠️ ' + e.message;
   }
 }
 
 async function submitAdminRFID() {
-  const uid   = (document.getElementById('rr-uid').value||'').trim().toUpperCase();
-  const stid  = document.getElementById('rr-stud').value;
-  if (!stid) { toast('Select a student first','error'); return; }
-  if (!uid || uid.length < 4) { toast('Scan or enter card UID first','error'); return; }
+  const uid  = (document.getElementById('rr-uid')?.value || '').trim().toUpperCase();
+  const stid = document.getElementById('rr-stud')?.value;
+  if (!stid) { toast('Select a student first', 'error'); return; }
+  if (!uid || uid.length < 4) { toast('Scan or enter card UID first', 'error'); return; }
   try {
-    await api('POST','/api/rfid',{uid, student_id:parseInt(stid)});
+    await api('POST', '/api/rfid', {uid, student_id: parseInt(stid)});
+    _adminNFCScanning = false;
     closeModal();
-    toast('✅ Card registered!','success');
+    toast('✅ Card registered!', 'success');
     navigate('rfid');
-  } catch(e) { toast(e.message,'error'); }
+  } catch(e) { toast(e.message, 'error'); }
 }
 
 /* ══════════════════════════════════════════════════
