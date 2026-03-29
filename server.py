@@ -11,6 +11,8 @@ from flask_cors import CORS
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 _default   = os.path.join(BASE_DIR, 'database', 'edutrack.db')
 DB_PATH    = os.environ.get('DB_PATH', _default)
+print(f"[CONFIG] DB_PATH = {DB_PATH}")
+print(f"[CONFIG] BASE_DIR = {BASE_DIR}")
 JWT_SECRET = os.environ.get('JWT_SECRET', 'edutrack-pro-secret-2025-xyz')
 JWT_EXPIRY = 72
 
@@ -56,8 +58,16 @@ def XM(sql, rows):
     db = get_db(); db.executemany(sql, rows); db.commit()
 
 def init_db():
+    global DB_PATH
     db_dir = os.path.dirname(os.path.abspath(DB_PATH))
-    os.makedirs(db_dir, exist_ok=True)
+    print(f"[INIT_DB] Creating dir: {db_dir}")
+    try:
+        os.makedirs(db_dir, exist_ok=True)
+        print(f"[INIT_DB] Dir OK: {db_dir}")
+    except Exception as e:
+        print(f"[INIT_DB] Dir error: {e} — falling back to /tmp")
+        DB_PATH = '/tmp/edutrack.db'
+        print(f"[INIT_DB] Using fallback: {DB_PATH}")
     db = sqlite3.connect(DB_PATH)
     db.execute("PRAGMA foreign_keys=ON")
     db.executescript("""
@@ -728,8 +738,23 @@ def spa(path):
     return send_file(os.path.join(BASE_DIR, 'templates', 'index.html'))
 
 # ── STARTUP ───────────────────────────────────────────────────────────────
-init_db()
-_verify_admin()
+_db_initialized = False
+
+@app.before_request
+def ensure_db():
+    global _db_initialized
+    if not _db_initialized:
+        init_db()
+        _verify_admin()
+        _db_initialized = True
+
+# Also try to init immediately (works for direct python run)
+try:
+    init_db()
+    _verify_admin()
+    _db_initialized = True
+except Exception as e:
+    print(f"[STARTUP] Deferred init: {e}")
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
