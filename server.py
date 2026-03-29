@@ -9,7 +9,11 @@ from flask import Flask, request, jsonify, g, send_from_directory, send_file
 from flask_cors import CORS
 
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
-DB_PATH    = os.environ.get('DB_PATH', os.path.join(BASE_DIR, 'database', 'edutrack.db'))
+# Use /tmp for Render free plan, or custom path via env var
+_default_db = os.path.join(BASE_DIR, 'database', 'edutrack.db')
+DB_PATH = os.environ.get('DB_PATH', _default_db)
+# Auto-create parent directory
+os.makedirs(os.path.dirname(DB_PATH) if os.path.dirname(DB_PATH) else '.', exist_ok=True)
 JWT_SECRET = os.environ.get('JWT_SECRET', 'edutrack-pro-secret-2025-xyz')
 JWT_EXPIRY = 72
 
