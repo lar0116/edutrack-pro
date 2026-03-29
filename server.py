@@ -9,7 +9,7 @@ from flask import Flask, request, jsonify, g, send_from_directory, send_file
 from flask_cors import CORS
 
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
-DB_PATH    = os.path.join(BASE_DIR, 'database', 'edutrack.db')
+DB_PATH    = os.environ.get('DB_PATH', os.path.join(BASE_DIR, 'database', 'edutrack.db'))
 JWT_SECRET = os.environ.get('JWT_SECRET', 'edutrack-pro-secret-2025-xyz')
 JWT_EXPIRY = 72
 
@@ -57,7 +57,7 @@ def XM(sql, rows):
     db = get_db(); db.executemany(sql, rows); db.commit()
 
 def init_db():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+    os.makedirs(os.path.dirname(DB_PATH) or '.', exist_ok=True)
     db = sqlite3.connect(DB_PATH)
     db.execute("PRAGMA foreign_keys=ON")
     db.executescript("""
@@ -769,4 +769,6 @@ def spa(path):
 if __name__ == '__main__':
     init_db()
     print("🚀 EduTrack Pro on http://localhost:5000")
-    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('FLASK_ENV') != 'production'
+    app.run(debug=debug, host='0.0.0.0', port=port, use_reloader=False)

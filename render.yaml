@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: edutrack-pro
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn server:app --bind 0.0.0.0:$PORT
+    disk:
+      name: edutrack-db
+      mountPath: /data
+      sizeGB: 1
