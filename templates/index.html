@@ -1,4 +1,3 @@
-
 <!DOCTYPE html><!-- EduTrack Pro v20260329_112713 -->
 <html lang="en">
 <head>
@@ -254,30 +253,54 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <div class="icon">🎓</div>
       <div>
         <div class="name">EduTrack Pro</div>
-        <div class="tagline">RFID/NFC Attendance &amp; Grading System</div>
+        <div class="tagline">Tarlac State University · CCS</div>
       </div>
     </div>
-    <div class="role-tabs">
-      <div class="role-tab active" id="tab-admin" onclick="setRole('admin')">👨‍🏫 Admin</div>
-      <div class="role-tab" id="tab-student" onclick="setRole('student')">👨‍🎓 Student</div>
-    </div>
-    <div id="form-admin">
-      <div class="form-group"><label>Username</label>
-        <input id="l-user" placeholder="Enter username" onkeydown="if(event.key==='Enter')doLogin()">
+
+    <!-- STUDENT LOGIN (Primary) -->
+    <div id="form-student">
+      <div style="text-align:center;margin-bottom:16px">
+        <div style="font-size:13px;font-weight:700;color:var(--text2)">👨‍🎓 Student Login</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px">Enter your student number to continue</div>
       </div>
-      <div class="form-group"><label>Password</label>
-        <input id="l-pass" type="password" placeholder="Enter password" onkeydown="if(event.key==='Enter')doLogin()">
+      <div class="form-group">
+        <input id="l-sno" placeholder="Student Number (e.g. 2023300356)"
+          style="text-align:center;font-size:15px;padding:12px"
+          onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <button class="btn-primary w-full" onclick="doLogin()"
+        style="padding:13px;justify-content:center;border-radius:var(--radius);font-size:14px">
+        🔐 Sign In as Student
+      </button>
+    </div>
+
+    <!-- DIVIDER -->
+    <div style="display:flex;align-items:center;gap:10px;margin:16px 0">
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+      <div style="font-size:11px;color:var(--text3)">or</div>
+      <div style="flex:1;height:1px;background:var(--border)"></div>
+    </div>
+
+    <!-- ADMIN LOGIN (Secondary) -->
+    <div>
+      <div style="font-size:12px;font-weight:600;color:var(--text3);text-align:center;margin-bottom:8px;cursor:pointer" onclick="toggleAdminForm()">
+        👨‍🏫 Admin / Instructor Login ▾
+      </div>
+      <div id="form-admin" class="hidden">
+        <div class="form-group">
+          <input id="l-user" placeholder="Username" onkeydown="if(event.key==='Enter')doLogin()">
+        </div>
+        <div class="form-group">
+          <input id="l-pass" type="password" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()">
+        </div>
+        <button class="btn-secondary w-full" onclick="doLogin()"
+          style="padding:10px;justify-content:center;border-radius:var(--radius)">
+          🔐 Sign In as Admin
+        </button>
       </div>
     </div>
-    <div id="form-student" class="hidden">
-      <div class="form-group"><label>Student Number</label>
-        <input id="l-sno" placeholder="e.g. 2023300356" onkeydown="if(event.key==='Enter')doLogin()">
-      </div>
-    </div>
-    <button class="btn-primary w-full" onclick="doLogin()" style="padding:11px;justify-content:center;border-radius:var(--radius)">
-      🔐 Sign In
-    </button>
-    <div id="login-err" style="color:var(--red);font-size:12px;text-align:center;margin-top:8px;display:none"></div>
+
+    <div id="login-err" style="color:var(--red);font-size:12px;text-align:center;margin-top:10px;display:none"></div>
   </div>
 </div>
 
@@ -332,6 +355,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <div class="urole" id="user-display-role">—</div>
         </div>
       </div>
+      <button onclick="doLogout()" style="width:100%;margin-top:6px;padding:8px;border-radius:var(--radius);background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,.3);font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+        🚪 Logout
+      </button>
     </div>
   </div>
 
@@ -341,7 +367,6 @@ tr:hover td{background:rgba(255,255,255,.02)}
       <button id="mobile-menu-btn" class="btn-secondary btn-sm btn-icon" onclick="openMobileSidebar()">☰</button>
       <div class="page-title" id="page-title">Dashboard</div>
       <div class="topbar-right" id="topbar-actions"></div>
-      <button class="btn-secondary btn-sm" onclick="doLogout()" style="margin-left:8px">🚪 Logout</button>
     </div>
     <div id="content"></div>
   </div>
@@ -394,13 +419,12 @@ async function api(method, path, body=null, noAuth=false) {
 /* ══════════════════════════════════════════════════
    AUTH
 ══════════════════════════════════════════════════ */
-let _loginRole = 'admin';
-function setRole(r) {
-  _loginRole = r;
-  document.getElementById('tab-admin').classList.toggle('active', r==='admin');
-  document.getElementById('tab-student').classList.toggle('active', r==='student');
-  document.getElementById('form-admin').classList.toggle('hidden', r!=='admin');
-  document.getElementById('form-student').classList.toggle('hidden', r!=='student');
+let _loginRole = 'student'; // student is default now
+function setRole(r) { _loginRole = r; }
+function toggleAdminForm() {
+  _loginRole = 'admin';
+  const f = document.getElementById('form-admin');
+  f.classList.toggle('hidden');
 }
 
 async function doLogin() {
@@ -411,12 +435,19 @@ async function doLogin() {
   localStorage.removeItem('et_token');
   try {
     let res;
-    if (_loginRole === 'admin') {
-      const u = document.getElementById('l-user').value.trim();
+    // Detect login mode: if admin form is visible and has username filled
+    const adminForm = document.getElementById('form-admin');
+    const uVal = document.getElementById('l-user')?.value.trim();
+    const isAdminMode = adminForm && !adminForm.classList.contains('hidden') && uVal;
+
+    if (isAdminMode) {
+      _loginRole = 'admin';
+      const u = uVal;
       const p = document.getElementById('l-pass').value;
       if (!u || !p) { showLoginErr('Enter username and password'); return; }
       res = await api('POST', '/api/auth/login', {role:'admin', username:u, password:p}, true);
     } else {
+      _loginRole = 'student';
       const sno = document.getElementById('l-sno').value.trim();
       if (!sno) { showLoginErr('Enter your student number'); return; }
       res = await api('POST', '/api/auth/login', {role:'student', student_no:sno}, true);
@@ -1066,133 +1097,288 @@ function openSection(id) { navigate('students'); window._secFilter = id; }
 
 /* Section Form */
 let _slots = [];
+
+/* ── Time helpers ────────────────────────────── */
+// Convert "HH:MM" (24h) to minutes
+function hhmm2min(t) {
+  if (!t) return null;
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+// Convert minutes to "H:MM AM/PM"
+function min2display(m) {
+  if (m === null || isNaN(m)) return '—';
+  const h24 = Math.floor(m / 60) % 24, mn = m % 60;
+  const ap = h24 >= 12 ? 'PM' : 'AM';
+  const h12 = h24 > 12 ? h24-12 : h24 === 0 ? 12 : h24;
+  return `${h12}:${mn.toString().padStart(2,'0')} ${ap}`;
+}
+// Convert "HH:MM" to "H:MM AM/PM"
+function hhmm2display(t) { return t ? min2display(hhmm2min(t)) : '—'; }
+// Duration in hours+minutes string
+function durationStr(startHHMM, endHHMM) {
+  const s = hhmm2min(startHHMM), e = hhmm2min(endHHMM);
+  if (s === null || e === null || e <= s) return '';
+  const d = e - s;
+  const h = Math.floor(d/60), m = d%60;
+  return h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
+}
+// Validate no overlap within _slots
+function detectOverlap(ignoreIdx) {
+  const warnings = [];
+  for (let i = 0; i < _slots.length; i++) {
+    if (i === ignoreIdx) continue;
+    for (let j = i+1; j < _slots.length; j++) {
+      if (j === ignoreIdx) continue;
+      const a = _slots[i], b = _slots[j];
+      if (a.day !== b.day) continue;
+      const as = hhmm2min(a.time_start), ae = hhmm2min(a.time_end);
+      const bs = hhmm2min(b.time_start), be = hhmm2min(b.time_end);
+      if (as===null||ae===null||bs===null||be===null) continue;
+      if (as < be && ae > bs) warnings.push(`Session ${i+1} and ${j+1} overlap on ${a.day}`);
+    }
+  }
+  return warnings;
+}
+
+/* ── Section Form ────────────────────────────── */
 async function showSectionForm(id=null) {
   let sec = null;
   if (id) {
     const all = await api('GET', `/api/sections?sem_id=${_activeSem?.id||''}`).catch(()=>[]);
     sec = all.find(s=>s.id===id);
   }
-  _slots = sec?.slots ? JSON.parse(JSON.stringify(sec.slots)) : [];
+  // Convert existing slots: ensure time_start/time_end are HH:MM format
+  _slots = (sec?.slots || []).map(s => ({
+    ...s,
+    time_start: toHHMM(s.time_start),
+    time_end:   toHHMM(s.time_end),
+  }));
 
   showModal(`
-    <div class="modal-header"><div class="modal-title">${sec?'Edit':'New'} Section</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-header">
+      <div class="modal-title">${sec?'✏️ Edit':'➕ New'} Section</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
     <div style="background:var(--accent-dim);border:1px solid rgba(59,130,246,.3);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:12px">
-      📅 Context: <strong>${_activeSem?.year||'?'} — ${_activeSem?.label||'?'}</strong>
+      📅 <strong>${_activeSem?.year||'?'} — ${_activeSem?.label||'?'}</strong>
     </div>
     <div style="display:flex;gap:6px;margin-bottom:14px">
       <button id="sf-tab-basic" class="btn-primary btn-sm" onclick="sfTab('basic')">📋 Basic Info</button>
       <button id="sf-tab-sched" class="btn-secondary btn-sm" onclick="sfTab('sched')">📅 Schedule</button>
     </div>
+
+    <!-- BASIC INFO -->
     <div id="sf-panel-basic">
       <div class="form-row cols-2">
-        <div class="form-group"><label>Section Name *</label><input id="sf-name" value="${sec?.name||''}" placeholder="e.g. TSM3A"></div>
-        <div class="form-group"><label>Subject Code *</label><input id="sf-subj" value="${sec?.subject_code||''}" placeholder="SAM"></div>
+        <div class="form-group"><label>Section Name *</label>
+          <input id="sf-name" value="${sec?.name||''}" placeholder="e.g. TSM3A"></div>
+        <div class="form-group"><label>Subject Code *</label>
+          <input id="sf-subj" value="${sec?.subject_code||''}" placeholder="SAM"></div>
       </div>
-      <div class="form-group"><label>Subject Full Name</label><input id="sf-sfull" value="${sec?.subject_full||''}" placeholder="System Administration and Maintenance"></div>
+      <div class="form-group"><label>Subject Full Name</label>
+        <input id="sf-sfull" value="${sec?.subject_full||''}" placeholder="System Administration and Maintenance">
+      </div>
       <div class="form-row cols-3">
-        <div class="form-group"><label>Program</label><input id="sf-prog" value="${sec?.program||'BSIT'}"></div>
-        <div class="form-group"><label>Year Level</label><select id="sf-year">
-          ${[1,2,3,4].map(y=>`<option value="${y}" ${(sec?.year_level||3)==y?'selected':''}>Year ${y}</option>`).join('')}
-        </select></div>
-        <div class="form-group"><label>Subject Type</label><select id="sf-type" onchange="sfTypeChange()">
-          <option value="lec-lab" ${!sec||sec.subject_type==='lec-lab'?'selected':''}>📖🔬 Lec + Lab</option>
-          <option value="lecture" ${sec?.subject_type==='lecture'?'selected':''}>📖 Pure Lecture</option>
-        </select></div>
+        <div class="form-group"><label>Program</label>
+          <input id="sf-prog" value="${sec?.program||'BSIT'}"></div>
+        <div class="form-group"><label>Year Level</label>
+          <select id="sf-year">${[1,2,3,4].map(y=>`<option value="${y}" ${(sec?.year_level||3)==y?'selected':''}>Year ${y}</option>`).join('')}</select>
+        </div>
+        <div class="form-group"><label>Subject Type</label>
+          <select id="sf-type">
+            <option value="lec-lab" ${!sec||sec.subject_type==='lec-lab'?'selected':''}>📖🔬 Lec + Lab</option>
+            <option value="lecture" ${sec?.subject_type==='lecture'?'selected':''}>📖 Pure Lecture</option>
+          </select>
+        </div>
       </div>
       <div class="form-row cols-2">
-        <div class="form-group"><label>Professor</label><input id="sf-prof" value="${sec?.professor||''}"  placeholder="e.g. Mr. Larsen B. Dignos"></div>
-        <div class="form-group"><label>Late Threshold (min)</label><input id="sf-late" type="number" value="${sec?.late_threshold||15}" min="1" max="60"></div>
+        <div class="form-group"><label>Professor</label>
+          <input id="sf-prof" value="${sec?.professor||''}" placeholder="e.g. Mr. Larsen B. Dignos"></div>
+        <div class="form-group"><label>Late Threshold (min)</label>
+          <input id="sf-late" type="number" value="${sec?.late_threshold||15}" min="1" max="60"></div>
       </div>
     </div>
+
+    <!-- SCHEDULE -->
     <div id="sf-panel-sched" style="display:none">
-      <div style="background:var(--surface2);border-radius:8px;padding:10px;font-size:11px;color:var(--text2);margin-bottom:10px">
-        💡 <strong>Lec+Lab:</strong> Lecture=2hrs, Lab=3hrs &nbsp;|&nbsp; <strong>Pure Lecture:</strong> 3hrs straight or 2×1.5hrs<br>
-        Enter start time → end time is auto-computed based on type.
+      <div style="background:var(--surface2);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text2);margin-bottom:12px">
+        ➕ Add one session row per class meeting day. Each row has its own day, start time, and end time.
+        <strong>Duration is based on what you enter</strong> — no auto-calculation.
       </div>
-      <div id="sf-slots"></div>
-      <button class="btn-secondary btn-sm" onclick="addSlot()">➕ Add Slot</button>
+      <div id="sf-overlap-warn" style="display:none;background:var(--red-dim);border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--red);margin-bottom:10px"></div>
+      <div id="sf-slots-list"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
+        <button class="btn-secondary btn-sm" onclick="sfAddSlot()">➕ Add Session</button>
+        <div id="sf-total-hours" style="font-size:12px;color:var(--text3)"></div>
+      </div>
     </div>
+
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn-primary" onclick="saveSection('${id||''}')">💾 Save</button>
+      <button class="btn-primary" onclick="saveSection('${id||''}')">💾 Save Section</button>
     </div>`, 'modal-lg');
-  renderSlots();
+
+  sfRenderSlots();
+}
+
+// Convert various time formats to HH:MM (24h)
+function toHHMM(t) {
+  if (!t) return '';
+  t = t.trim();
+  // Already HH:MM
+  if (/^\d{1,2}:\d{2}$/.test(t)) return t.length===4?'0'+t:t;
+  // 12h format: 3:00PM, 3:00 PM
+  const m = t.toUpperCase().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+  if (m) {
+    let h = parseInt(m[1]), mn = parseInt(m[2]);
+    if (m[3]==='PM' && h!==12) h+=12;
+    if (m[3]==='AM' && h===12) h=0;
+    return `${h.toString().padStart(2,'0')}:${mn.toString().padStart(2,'0')}`;
+  }
+  return t;
 }
 
 function sfTab(t) {
-  ['basic','sched'].forEach(x=>{
-    document.getElementById('sf-panel-'+x).style.display=x===t?'block':'none';
-    document.getElementById('sf-tab-'+x).className=`btn-${x===t?'primary':'secondary'} btn-sm`;
+  ['basic','sched'].forEach(x => {
+    document.getElementById('sf-panel-'+x).style.display = x===t ? 'block':'none';
+    document.getElementById('sf-tab-'+x).className = `btn-${x===t?'primary':'secondary'} btn-sm`;
   });
+  if (t==='sched') sfRenderSlots();
 }
 
-function sfTypeChange() {
-  renderSlots(); // re-render auto end times
-}
+function sfRenderSlots() {
+  const el = document.getElementById('sf-slots-list'); if (!el) return;
+  const DAYS = ['MON','TUE','WED','THURS','FRI','SAT'];
 
-function computeEndTime(timeStart, slotType, subjType) {
-  if (!timeStart) return '';
-  const clean = timeStart.trim().toUpperCase();
-  const m = clean.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
-  if (!m) return '';
-  let hr = parseInt(m[1]); const mn = parseInt(m[2]); const ap = m[3];
-  if (ap==='PM' && hr!==12) hr+=12;
-  if (ap==='AM' && hr===12) hr=0;
-  let total = hr*60+mn;
-  if (subjType==='lec-lab') total += slotType==='lab' ? 180 : 120;
-  else total += 180; // pure lecture = 3hrs (or 1.5, user can override)
-  const nh=Math.floor(total/60)%24; const nm=total%60;
-  const nap=nh>=12?'PM':'AM'; const fh=nh>12?nh-12:nh===0?12:nh;
-  return `${fh}:${nm.toString().padStart(2,'0')}${nap}`;
-}
-
-function renderSlots() {
-  const el = document.getElementById('sf-slots'); if (!el) return;
-  const DAYS=['MON','TUE','WED','THURS','FRI','SAT'];
-  const subjType = document.getElementById('sf-type')?.value || 'lec-lab';
   if (_slots.length === 0) {
-    el.innerHTML='<div style="color:var(--text3);font-size:12px;margin-bottom:8px">No slots yet.</div>';
+    el.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);border:2px dashed var(--border);border-radius:8px;margin-bottom:8px">
+      <div style="font-size:24px;margin-bottom:8px">📅</div>
+      No sessions yet. Click <strong>➕ Add Session</strong> below.
+    </div>`;
+    sfUpdateTotalHours();
     return;
   }
-  el.innerHTML = _slots.map((s,i)=>`
-    <div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:8px;padding:10px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);flex-wrap:wrap">
-      <div style="min-width:90px"><label style="font-size:10px">Day</label>
-        <select onchange="_slots[${i}].day=this.value" style="padding:6px 8px;font-size:12px">
-          ${DAYS.map(d=>`<option value="${d}" ${s.day===d?'selected':''}>${d}</option>`).join('')}
-        </select>
+
+  el.innerHTML = _slots.map((s, i) => {
+    const dur = durationStr(s.time_start, s.time_end);
+    const invalid = s.time_start && s.time_end && hhmm2min(s.time_end) <= hhmm2min(s.time_start);
+    return `
+    <div style="background:var(--surface2);border:1px solid ${invalid?'var(--red)':'var(--border)'};border-radius:10px;padding:12px 14px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--text2)">Session ${i+1}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          ${dur?`<span style="font-size:11px;font-weight:600;color:${invalid?'var(--red)':'var(--green)'}">
+            ${invalid?'⚠️ Invalid time range':'⏱ '+dur}</span>`:''}
+          <button onclick="_slots.splice(${i},1);sfRenderSlots()" 
+            style="background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,.3);border-radius:6px;padding:3px 10px;font-size:11px;font-weight:600;cursor:pointer">
+            ✕ Remove
+          </button>
+        </div>
       </div>
-      <div style="min-width:100px"><label style="font-size:10px">Type</label>
-        <select onchange="_slots[${i}].slot_type=this.value;_slots[${i}].time_end=computeEndTime(_slots[${i}].time_start,this.value,document.getElementById('sf-type').value);renderSlots()" style="padding:6px 8px;font-size:12px">
-          <option value="lecture" ${(!s.slot_type||s.slot_type==='lecture')?'selected':''}>📖 Lecture</option>
-          <option value="lab" ${s.slot_type==='lab'?'selected':''}>🔬 Lab</option>
-        </select>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;align-items:end">
+        <!-- Day -->
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Day</label>
+          <select style="width:100%;padding:8px 10px;font-size:13px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text)"
+            onchange="_slots[${i}].day=this.value;sfRenderSlots()">
+            ${DAYS.map(d=>`<option value="${d}" ${s.day===d?'selected':''}>${d}</option>`).join('')}
+          </select>
+        </div>
+        <!-- Type -->
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Type</label>
+          <select style="width:100%;padding:8px 10px;font-size:13px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text)"
+            onchange="_slots[${i}].slot_type=this.value;sfRenderSlots()">
+            <option value="lecture" ${(!s.slot_type||s.slot_type==='lecture')?'selected':''}>📖 Lecture</option>
+            <option value="lab" ${s.slot_type==='lab'?'selected':''}>🔬 Lab</option>
+          </select>
+        </div>
+        <!-- Start Time -->
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Start Time</label>
+          <input type="time" value="${s.time_start||''}"
+            style="width:100%;padding:8px 10px;font-size:13px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text)"
+            onchange="_slots[${i}].time_start=this.value;sfRenderSlots()">
+        </div>
+        <!-- End Time -->
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">End Time</label>
+          <input type="time" value="${s.time_end||''}"
+            style="width:100%;padding:8px 10px;font-size:13px;border-radius:6px;border:1px solid ${invalid?'var(--red)':'var(--border)'};background:var(--surface);color:var(--text)"
+            onchange="_slots[${i}].time_end=this.value;sfRenderSlots()">
+        </div>
       </div>
-      <div style="min-width:90px"><label style="font-size:10px">Start Time</label>
-        <input value="${s.time_start||''}" placeholder="1:00PM" style="padding:6px 8px;font-size:12px" 
-          oninput="_slots[${i}].time_start=this.value;_slots[${i}].time_end=computeEndTime(this.value,_slots[${i}].slot_type||'lecture',document.getElementById('sf-type').value);renderSlots()">
+      <!-- Room (full width) -->
+      <div style="margin-top:8px">
+        <label style="font-size:11px;font-weight:600;color:var(--text3);display:block;margin-bottom:4px">Room</label>
+        <input value="${s.room||''}" placeholder="e.g. C414, L402" 
+          style="width:100%;padding:8px 10px;font-size:13px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text)"
+          oninput="_slots[${i}].room=this.value">
       </div>
-      <div style="min-width:90px"><label style="font-size:10px">End Time (auto)</label>
-        <input value="${s.time_end||computeEndTime(s.time_start,s.slot_type||'lecture',subjType)}" placeholder="3:00PM" style="padding:6px 8px;font-size:12px;background:var(--surface3)"
-          oninput="_slots[${i}].time_end=this.value">
-      </div>
-      <div style="min-width:80px"><label style="font-size:10px">Room</label>
-        <input value="${s.room||''}" placeholder="C414" style="padding:6px 8px;font-size:12px" oninput="_slots[${i}].room=this.value">
-      </div>
-      <button class="btn-danger btn-sm btn-icon" onclick="_slots.splice(${i},1);renderSlots()" style="margin-bottom:2px" title="Remove">✕</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+
+  sfUpdateTotalHours();
+  sfShowOverlapWarnings();
 }
 
-function addSlot() {
-  const subjType = document.getElementById('sf-type')?.value||'lec-lab';
-  const type = _slots.length===0 ? 'lecture' : subjType==='lec-lab' ? 'lab' : 'lecture';
-  _slots.push({day:'MON', slot_type:type, time_start:'', time_end:'', room:''});
-  renderSlots();
+function sfAddSlot() {
+  const subjType = document.getElementById('sf-type')?.value || 'lec-lab';
+  const usedDays = _slots.map(s=>s.day);
+  const DAYS=['MON','TUE','WED','THURS','FRI','SAT'];
+  const nextDay = DAYS.find(d=>!usedDays.includes(d)) || 'MON';
+  const type = _slots.length===0 ? 'lecture' : (subjType==='lec-lab' && !_slots.find(s=>s.slot_type==='lab') ? 'lab' : 'lecture');
+  _slots.push({day:nextDay, slot_type:type, time_start:'', time_end:'', room:''});
+  sfTab('sched');
+  sfRenderSlots();
 }
+
+function sfUpdateTotalHours() {
+  const el = document.getElementById('sf-total-hours'); if (!el) return;
+  let totalMin = 0;
+  _slots.forEach(s => {
+    const d = hhmm2min(s.time_end) - hhmm2min(s.time_start);
+    if (d > 0) totalMin += d;
+  });
+  if (totalMin > 0) {
+    const h=Math.floor(totalMin/60), m=totalMin%60;
+    el.textContent = `Total: ${h>0?h+'h ':''} ${m>0?m+'m':''} / week`;
+    el.style.color = 'var(--accent)';
+  } else {
+    el.textContent = '';
+  }
+}
+
+function sfShowOverlapWarnings() {
+  const warn = document.getElementById('sf-overlap-warn'); if (!warn) return;
+  const overlaps = detectOverlap(-1);
+  if (overlaps.length) {
+    warn.style.display = 'block';
+    warn.innerHTML = '⚠️ Schedule overlap detected:<br>' + overlaps.map(w=>`• ${w}`).join('<br>');
+  } else {
+    warn.style.display = 'none';
+  }
+}
+
+// Keep addSlot as alias for backward compat
+function addSlot() { sfAddSlot(); }
+function sfTypeChange() {} // no-op, type no longer auto-computes duration
 
 async function saveSection(id) {
   if (!_activeSem?.id) { toast('No active semester!','error'); return; }
   const name = document.getElementById('sf-name').value.trim();
   if (!name) { toast('Section name required','error'); return; }
+
+  // Validate slots
+  for (let i=0; i<_slots.length; i++) {
+    const s = _slots[i];
+    if (!s.time_start || !s.time_end) { toast(`Session ${i+1}: please fill in start and end time`,'error'); sfTab('sched'); return; }
+    if (hhmm2min(s.time_end) <= hhmm2min(s.time_start)) { toast(`Session ${i+1}: end time must be after start time`,'error'); sfTab('sched'); return; }
+  }
+  const overlaps = detectOverlap(-1);
+  if (overlaps.length) { toast('Fix schedule overlaps first: '+overlaps[0],'error'); sfTab('sched'); return; }
+
   const data = {
     sem_id: _activeSem.id,
     name,
@@ -1203,7 +1389,7 @@ async function saveSection(id) {
     subject_type: document.getElementById('sf-type').value,
     professor: document.getElementById('sf-prof').value.trim(),
     late_threshold: parseInt(document.getElementById('sf-late').value)||15,
-    slots: _slots,
+    slots: _slots.map(s=>({...s, time_start:s.time_start, time_end:s.time_end})),
   };
   try {
     if (id) await api('PUT', `/api/sections/${id}`, data);
@@ -1983,215 +2169,445 @@ async function startSessionQuick(secId, day, type, ts, te, room) {
 /* ══════════════════════════════════════════════════
    PAGE: GRADES
 ══════════════════════════════════════════════════ */
-const MT_WEIGHTS={C1:20,C2:20,C3:20,C4:10,C5:10,C6:20};
-const FT_WEIGHTS={C1:15,C2:20,C3:20,C4:5,C5:5,C6:15};
-const COMP_LABELS={C1:'Written Works',C2:'Performance Tasks',C3:'Quarterly Assessment',C4:'Attendance',C5:'Recitation/Participation',C6:'Project/Output'};
-let _gradeSecId=null, _gradeTerm='mt', _gradeData={configs:{},scores:{},att:{}};
+
+// Default grading structure matching the uploaded image
+const DEFAULT_CRITERIA = [
+  {code:'C1', label:'Laboratory Activity',          weight:20, numCols:10},
+  {code:'C2', label:'Quizzes',                      weight:20, numCols:10},
+  {code:'C3', label:'Written Exam',                 weight:20, numCols:1},
+  {code:'C4', label:'Attendance',                   weight:10, numCols:1},
+  {code:'C5', label:'Conduct and Class Participation', weight:10, numCols:10},
+  {code:'C6', label:'Laboratory Exam',              weight:20, numCols:10},
+];
+
+let _gradeSecId = null, _gradeTerm = 'mt';
+let _gsEdits    = {};  // {key: score}
+let _gsCriteria = null; // loaded per section/term
 
 async function pgGrades(c) {
   if (sem_guard(c)) return;
   const sections = await api('GET', `/api/sections?sem_id=${_activeSem.id}`).catch(()=>[]);
-  if (!_gradeSecId && sections.length) _gradeSecId=sections[0].id;
+  if (!_gradeSecId && sections.length) _gradeSecId = sections[0].id;
 
   document.getElementById('topbar-actions').innerHTML = `
     ${ctxBadge()}
-    <select id="gr-sec-sel" style="width:200px" onchange="_gradeSecId=parseInt(this.value);loadGradeSheet()">
+    <select id="gr-sec-sel" style="width:200px" onchange="_gradeSecId=parseInt(this.value);_gsEdits={};loadGradeSheet()">
       ${sections.map(s=>`<option value="${s.id}" ${s.id===_gradeSecId?'selected':''}>${s.name} — ${s.subject_code}</option>`).join('')}
     </select>
-    <div style="display:flex;gap:4px;flex-shrink:0">
-      <button id="gr-tab-mt" class="btn-${_gradeTerm==='mt'?'primary':'secondary'} btn-sm" onclick="_gradeTerm='mt';document.getElementById('gr-tab-mt').className='btn-primary btn-sm';document.getElementById('gr-tab-ft').className='btn-secondary btn-sm';loadGradeSheet()">MT</button>
-      <button id="gr-tab-ft" class="btn-${_gradeTerm==='ft'?'primary':'secondary'} btn-sm" onclick="_gradeTerm='ft';document.getElementById('gr-tab-mt').className='btn-secondary btn-sm';document.getElementById('gr-tab-ft').className='btn-primary btn-sm';loadGradeSheet()">FT</button>
+    <div style="display:flex;gap:4px">
+      <button id="gr-tab-mt" class="btn-${_gradeTerm==='mt'?'primary':'secondary'} btn-sm" onclick="switchTerm('mt')">Midterm</button>
+      <button id="gr-tab-ft" class="btn-${_gradeTerm==='ft'?'primary':'secondary'} btn-sm" onclick="switchTerm('ft')">Final Term</button>
     </div>
+    <button class="btn-secondary btn-sm" onclick="showCriteriaEditor()">⚙️ Criteria</button>
     <button class="btn-success btn-sm" onclick="saveGradeSheet()">💾 Save</button>`;
 
-  c.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text3)">⏳ Loading gradesheet…</div>';
+  c.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text3)">⏳ Loading gradesheet…</div>';
   if (_gradeSecId) loadGradeSheet();
 }
 
-let _gsEdits = {};
-async function loadGradeSheet() {
-  const c = document.getElementById('content'); if(!c) return;
+function switchTerm(term) {
+  _gradeTerm = term;
   _gsEdits = {};
-  const secId = _gradeSecId; const term = _gradeTerm;
-  const [students, configs, scores] = await Promise.all([
-    api('GET',`/api/students?section_id=${secId}`).catch(()=>[]),
-    api('GET',`/api/grades/config/${secId}/${term}`).catch(()=>[]),
-    api('GET',`/api/grades/scores/${secId}/${term}`).catch(()=>[]),
-  ]);
-  // Attendance per student
-  const attSummary = await api('GET',`/api/attendance/summary/${secId}?term=${term}`).catch(()=>[]);
-  const attMap = Object.fromEntries(attSummary.map(r=>[r.student_id,r]));
-  // Group configs by component
-  const compMap = {};
-  for(const comp of ['C1','C2','C3','C5','C6']) {
-    compMap[comp] = configs.filter(c=>c.component===comp).sort((a,b)=>a.col_order-b.col_order);
-  }
-  // Score lookup
-  const scoreKey = (stId,comp,ord) => `${stId}_${comp}_${ord}`;
-  const scoreMap = {};
-  scores.forEach(s=>{ scoreMap[scoreKey(s.student_id,s.component,s.col_order)]=s.score; });
+  document.getElementById('gr-tab-mt').className = `btn-${term==='mt'?'primary':'secondary'} btn-sm`;
+  document.getElementById('gr-tab-ft').className = `btn-${term==='ft'?'primary':'secondary'} btn-sm`;
+  loadGradeSheet();
+}
 
-  const WEIGHTS = term==='mt' ? MT_WEIGHTS : FT_WEIGHTS;
+async function loadGradeSheet() {
+  const c = document.getElementById('content'); if (!c) return;
+  const secId = _gradeSecId, term = _gradeTerm;
+
+  const [students, configs, scores, attSummary] = await Promise.all([
+    api('GET', `/api/students?section_id=${secId}`).catch(()=>[]),
+    api('GET', `/api/grades/config/${secId}/${term}`).catch(()=>[]),
+    api('GET', `/api/grades/scores/${secId}/${term}`).catch(()=>[]),
+    api('GET', `/api/attendance/summary/${secId}?term=${term}`).catch(()=>[]),
+  ]);
+
+  // Build criteria from config, or use defaults
+  let criteria = buildCriteria(configs);
+  _gsCriteria = criteria;
+
+  const attMap   = Object.fromEntries(attSummary.map(r => [r.student_id, r]));
+  const scoreMap = Object.fromEntries(scores.map(s => [`${s.student_id}_${s.component}_${s.col_order}`, s.score]));
+
+  const cutoff = 60;
+  const totalWeight = criteria.reduce((a, cr) => a + cr.weight, 0);
+
+  // ── Criteria setup table (top)
+  const criteriaTable = `
+    <div class="card mb-3" style="padding:0;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--surface2);border-bottom:1px solid var(--border)">
+        <div style="font-size:13px;font-weight:700">📋 Grading Criteria — ${term==='mt'?'Midterm':'Final Term'}</div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px">
+          <span>CUT-OFF:</span>
+          <span style="font-family:var(--mono);font-size:16px;font-weight:800;color:var(--accent)">${cutoff}</span>
+          <span style="margin-left:8px;color:${Math.abs(totalWeight-100)<0.01?'var(--green)':'var(--red)'}">
+            Total: ${totalWeight}% ${Math.abs(totalWeight-100)<0.01?'✅':'⚠️ Must be 100%'}
+          </span>
+        </div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:var(--surface3)">
+          <th style="padding:6px 12px;text-align:center;width:60px">CODE</th>
+          <th style="padding:6px 12px">CRITERIA</th>
+          <th style="padding:6px 12px;text-align:center;color:var(--accent);width:110px">WEIGHTED %</th>
+          <th style="padding:6px 12px;text-align:center;width:100px">No. of COLUMNS</th>
+        </tr></thead>
+        <tbody>
+          ${criteria.map(cr => `<tr style="border-top:1px solid var(--border)">
+            <td style="padding:6px 12px;text-align:center;font-weight:800;font-family:var(--mono)">${cr.code}</td>
+            <td style="padding:6px 12px;font-weight:600">${cr.label}</td>
+            <td style="padding:6px 12px;text-align:center;color:var(--accent);font-weight:700">${cr.weight}</td>
+            <td style="padding:6px 12px;text-align:center">${cr.code==='C4'?'Auto (Attendance)':cr.cols.length}</td>
+          </tr>`).join('')}
+          <tr style="border-top:2px solid var(--border);background:var(--surface2)">
+            <td colspan="2" style="padding:6px 12px;text-align:right;font-weight:800;color:var(--purple)">TOTAL</td>
+            <td style="padding:6px 12px;text-align:center;font-weight:800;color:var(--purple)">${totalWeight}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>`;
+
+  // ── Build gradesheet table
+  function scoreKey(stId, comp, ord) { return `${stId}_${comp}_${ord}`; }
 
   function computeRow(stId) {
-    let rpg=0;
-    ['C1','C2','C3','C5','C6'].forEach(comp=>{
-      const cols=compMap[comp]; if(!cols.length) return;
-      let sum=0, count=0;
-      cols.forEach(col=>{
-        const sc=parseFloat(_gsEdits[scoreKey(stId,comp,col.col_order)]??scoreMap[scoreKey(stId,comp,col.col_order)]??0);
-        const mx=parseFloat(col.max_score||0);
-        if(mx>0){sum+=sc/mx*100;count++;}
-      });
-      const aprs=count?sum/count:0;
-      rpg+=aprs*(WEIGHTS[comp]/100);
+    let rpg = 0;
+    criteria.forEach(cr => {
+      if (cr.code === 'C4') {
+        const att = attMap[stId] || {total:0, present:0, late:0, excuse:0};
+        const rate = att.total > 0 ? ((att.present+att.late+att.excuse)/att.total*100) : 0;
+        rpg += rate * (cr.weight/100);
+      } else {
+        if (!cr.cols.length) return;
+        let sum = 0, cnt = 0;
+        cr.cols.forEach(col => {
+          const sc = parseFloat(_gsEdits[scoreKey(stId,cr.code,col.col_order)] ?? scoreMap[scoreKey(stId,cr.code,col.col_order)] ?? 0);
+          const mx = parseFloat(col.max_score||0);
+          if (mx > 0) { sum += sc/mx*100; cnt++; }
+        });
+        rpg += (cnt ? sum/cnt : 0) * (cr.weight/100);
+      }
     });
-    // C4 attendance
-    const att=attMap[stId]||{total:0,present:0,late:0,excuse:0};
-    const attRate=att.total>0?((att.present+att.late+att.excuse)/att.total*100):0;
-    rpg+=attRate*(WEIGHTS['C4']/100);
-    return {rpg, attRate};
+    return rpg;
   }
 
-  // Build header colspan map
-  const compHeaders = ['C1','C2','C3','C5','C6'].map(comp=>`
-    <th colspan="${Math.max(compMap[comp].length,1)+1}" style="background:rgba(59,130,246,.08);text-align:center;border-bottom:1px solid var(--border)">
-      ${comp} — ${COMP_LABELS[comp]}<br><span style="font-size:9px;font-weight:400;color:var(--text3)">${WEIGHTS[comp]}%</span>
-    </th>`).join('');
-  const c4Header = `<th colspan="2" style="background:rgba(34,197,94,.06);text-align:center;border-bottom:1px solid var(--border)">C4 — ${COMP_LABELS.C4}<br><span style="font-size:9px;font-weight:400;color:var(--text3)">${WEIGHTS.C4}%</span></th>`;
-
-  const subHeaders = ['C1','C2','C3','C5','C6'].map(comp=>{
-    const cols = compMap[comp];
-    return (cols.length?cols.map((col,i)=>`<th style="min-width:54px;cursor:pointer" title="Click to edit/delete" onclick="editGradeCol(${secId},'${term}','${comp}',${col.col_order},'${col.label}',${col.max_score})">${col.label}<br><span style="font-size:9px;color:var(--text3)">/${col.max_score}</span></th>`).join(''):'<th style="color:var(--text3)">—</th>')
-    + `<th title="Add column" style="cursor:pointer;color:var(--accent)" onclick="addGradeCol(${secId},'${term}','${comp}')">＋</th>`;
+  // Header row 1 — criteria groups
+  const hdr1 = criteria.map(cr => {
+    const span = cr.code==='C4' ? 2 : Math.max(cr.cols.length,1)+1;
+    const bg   = cr.code==='C4' ? 'rgba(34,197,94,.06)' : 'rgba(59,130,246,.06)';
+    return `<th colspan="${span}" style="background:${bg};text-align:center;padding:5px 8px;font-size:10px">
+      ${cr.code} — ${cr.label}<br><span style="font-size:9px;font-weight:400;color:var(--text3)">${cr.weight}%</span>
+    </th>`;
   }).join('');
-  const c4SubHeader = `<th>Att%</th><th>WPRS</th>`;
 
-  const rows = students.map((st,idx)=>{
-    const {rpg,attRate}=computeRow(st.id);
-    const tx=transmute(rpg);
-    const rpgCols = ['C1','C2','C3','C5','C6'].map(comp=>{
-      const cols=compMap[comp];
-      const cells=(cols.length?cols.map(col=>{
-        const k=scoreKey(st.id,comp,col.col_order);
-        const val=_gsEdits[k]??scoreMap[k]??'';
-        return `<td><input type="number" value="${val}" min="0" max="${col.max_score}" step="0.5" style="width:54px" onchange="_gsEdits['${k}']=parseFloat(this.value)||0;refreshRPGRow(${st.id})"></td>`;
-      }).join(''):`<td></td>`) + '<td></td>';
-      return cells;
+  // Header row 2 — individual columns
+  const hdr2 = criteria.map(cr => {
+    if (cr.code === 'C4') return `<th style="font-size:10px">Att%</th><th style="font-size:10px">WPRS</th>`;
+    const colHdrs = cr.cols.length
+      ? cr.cols.map(col => `<th style="min-width:52px;cursor:pointer;font-size:10px" title="Click to edit" onclick="editGradeCol(${secId},'${term}','${cr.code}',${col.col_order},'${col.label}',${col.max_score})">${col.label}<br><span style="font-size:9px;color:var(--text3)">/${col.max_score}</span></th>`).join('')
+      : `<th style="color:var(--text3);font-size:10px">—</th>`;
+    return colHdrs + `<th style="cursor:pointer;color:var(--accent);font-size:14px;font-weight:400" onclick="addGradeCol(${secId},'${term}','${cr.code}')" title="Add column">＋</th>`;
+  }).join('');
+
+  const bodyRows = students.map((st, idx) => {
+    const rpg = computeRow(st.id);
+    const tx  = transmute(rpg);
+
+    const dataCells = criteria.map(cr => {
+      if (cr.code === 'C4') {
+        const att  = attMap[st.id] || {total:0,present:0,late:0,excuse:0};
+        const rate = att.total>0 ? ((att.present+att.late+att.excuse)/att.total*100) : 0;
+        const wprs = (rate*cr.weight/100).toFixed(2);
+        return `<td style="text-align:center;font-size:11px">${rate.toFixed(1)}%</td><td style="text-align:center;font-size:11px">${wprs}</td>`;
+      }
+      const colCells = cr.cols.length
+        ? cr.cols.map(col => {
+            const k   = scoreKey(st.id, cr.code, col.col_order);
+            const val = _gsEdits[k] ?? scoreMap[k] ?? '';
+            return `<td><input type="number" value="${val}" min="0" max="${col.max_score}" step="0.5"
+              style="width:52px;padding:3px 4px;font-size:11px;text-align:center;background:transparent;border:1px solid transparent;border-radius:4px"
+              onfocus="this.style.background='var(--surface2)';this.style.borderColor='var(--accent)'"
+              onblur="this.style.background='transparent';this.style.borderColor='transparent'"
+              onchange="_gsEdits['${k}']=parseFloat(this.value)||0;gsRecompute(${st.id})"></td>`;
+          }).join('')
+        : '<td></td>';
+      return colCells + '<td></td>';
     }).join('');
-    const c4Att = attRate.toFixed(1);
-    const c4Wprs = (attRate*WEIGHTS.C4/100).toFixed(2);
-    return `<tr id="gs-row-${st.id}">
-      <td class="col-sticky" style="font-size:11px;font-weight:600;min-width:140px">${st.full_name.split(',')[0]||st.full_name}</td>
-      <td class="col-sticky" style="left:140px;font-size:10px;min-width:60px">${st.student_no}</td>
-      ${rpgCols}
-      <td style="text-align:center;font-size:11px">${c4Att}%</td>
-      <td style="text-align:center;font-size:11px">${c4Wprs}</td>
-      <td id="gs-rpg-${st.id}" style="font-weight:800;font-family:var(--mono);color:var(--accent)">${rpg.toFixed(2)}</td>
-      <td id="gs-gr-${st.id}" class="${remarkClass(tx.remarks)}">${tx.grade}</td>
-      <td id="gs-rm-${st.id}" style="font-size:10px" class="${remarkClass(tx.remarks)}">${tx.remarks}</td>
+
+    const rowBg = idx%2===0 ? '' : 'background:rgba(255,255,255,.015)';
+    return `<tr id="gs-row-${st.id}" style="${rowBg}">
+      <td class="col-sticky" style="font-size:11px;font-weight:600;min-width:150px;max-width:150px;overflow:hidden;text-overflow:ellipsis">${st.full_name}</td>
+      <td class="col-sticky" style="left:150px;font-size:10px;min-width:70px;color:var(--text2)">${st.student_no}</td>
+      ${dataCells}
+      <td id="gs-rpg-${st.id}" style="font-weight:800;font-family:var(--mono);color:var(--accent);text-align:center;min-width:56px">${rpg.toFixed(2)}</td>
+      <td id="gs-gr-${st.id}" class="${remarkClass(tx.remarks)}" style="font-weight:800;text-align:center;min-width:44px">${tx.grade}</td>
+      <td id="gs-rm-${st.id}" class="${remarkClass(tx.remarks)}" style="font-size:10px;min-width:90px">${tx.remarks}</td>
     </tr>`;
   }).join('');
 
-  // Horizontal scrollbar hint at top
-  const html=`
-    <div style="font-size:11px;color:var(--text3);margin-bottom:6px">💡 Scroll horizontally to see all columns. <strong>Click any column header</strong> to edit or delete it.</div>
-    <div class="gs-outer" id="gs-outer">
+  c.innerHTML = criteriaTable + `
+    <div style="font-size:11px;color:var(--text3);margin-bottom:6px">
+      💡 Scroll left/right to see all columns. Click column header to edit. Click <strong>＋</strong> to add columns. Click <strong>⚙️ Criteria</strong> to edit weights.
+    </div>
+    <div class="gs-outer">
       <table class="gs-table">
         <thead>
           <tr>
-            <th class="col-sticky" rowspan="2" style="min-width:140px;left:0;z-index:7">Full Name</th>
-            <th class="col-sticky" rowspan="2" style="min-width:60px;left:140px;z-index:7">Stud. No.</th>
-            ${compHeaders}${c4Header}
-            <th rowspan="2" style="min-width:60px">RPG</th>
-            <th rowspan="2" style="min-width:40px">Grade</th>
-            <th rowspan="2" style="min-width:80px">Remarks</th>
+            <th class="col-sticky" rowspan="2" style="min-width:150px;left:0;z-index:7;font-size:11px">Full Name</th>
+            <th class="col-sticky" rowspan="2" style="min-width:70px;left:150px;z-index:7;font-size:11px">Student No.</th>
+            ${hdr1}
+            <th rowspan="2" style="min-width:56px;text-align:center;font-size:11px">RPG</th>
+            <th rowspan="2" style="min-width:44px;text-align:center;font-size:11px">Grade</th>
+            <th rowspan="2" style="min-width:90px;font-size:11px">Remarks</th>
           </tr>
-          <tr>${subHeaders}${c4SubHeader}</tr>
+          <tr>${hdr2}</tr>
         </thead>
-        <tbody>${rows}</tbody>
+        <tbody>${students.length===0?`<tr><td colspan="20" style="text-align:center;padding:24px;color:var(--text3)">No students in this section yet.</td></tr>`:bodyRows}</tbody>
       </table>
     </div>`;
-  document.getElementById('content').innerHTML = html;
-
-  // Mirror scrollbar at top
-  const gsOuter=document.getElementById('gs-outer');
-  if(gsOuter){
-    gsOuter.addEventListener('scroll',()=>{});
-  }
 }
 
-function refreshRPGRow(stId) {
-  const WEIGHTS = _gradeTerm==='mt' ? MT_WEIGHTS : FT_WEIGHTS;
-  // Quick re-compute from current _gsEdits and DOM
-  // We'll just mark as pending; full refresh happens on save
-  const rpgEl=document.getElementById(`gs-rpg-${stId}`);
-  if(rpgEl) rpgEl.style.color='var(--yellow)'; // Mark as unsaved
+function buildCriteria(configs) {
+  const codes = ['C1','C2','C3','C4','C5','C6'];
+  return codes.map(code => {
+    const def  = DEFAULT_CRITERIA.find(d => d.code===code);
+    const cols = configs.filter(c => c.component===code).sort((a,b) => a.col_order-b.col_order);
+    const weight = cols.length ? cols[0].weight : (def?.weight||0);
+    return {
+      code,
+      label:  cols.length ? (cols[0].label_group||def?.label) : def?.label,
+      weight,
+      cols,
+    };
+  });
+}
+
+function gsRecompute(stId) {
+  if (!_gsCriteria) return;
+  // Re-compute this student's RPG live
+  const rpgEl = document.getElementById(`gs-rpg-${stId}`);
+  const grEl  = document.getElementById(`gs-gr-${stId}`);
+  const rmEl  = document.getElementById(`gs-rm-${stId}`);
+  if (!rpgEl) return;
+
+  // Get att
+  let rpg = 0;
+  _gsCriteria.forEach(cr => {
+    if (cr.code === 'C4') return; // attendance handled separately, keep as is
+    if (!cr.cols.length) return;
+    let sum=0, cnt=0;
+    cr.cols.forEach(col => {
+      const k   = `${stId}_${cr.code}_${col.col_order}`;
+      const el  = document.querySelector(`input[onchange*="'${k}'"]`);
+      const sc  = el ? parseFloat(el.value)||0 : (_gsEdits[k]??0);
+      const mx  = parseFloat(col.max_score||0);
+      if (mx>0) { sum+=sc/mx*100; cnt++; }
+    });
+    rpg += (cnt?sum/cnt:0) * (cr.weight/100);
+  });
+  // Add C4 from existing displayed value
+  const c4cells = document.querySelector(`#gs-row-${stId} td[data-c4]`);
+  // Just mark pending
+  rpgEl.style.color = 'var(--yellow)';
+  rpgEl.title = 'Unsaved changes';
 }
 
 async function saveGradeSheet() {
   if (!Object.keys(_gsEdits).length) { toast('No changes to save','info'); return; }
-  const rows=[];
-  for(const [key,score] of Object.entries(_gsEdits)){
-    const [stId,comp,ord]=key.split('_');
-    rows.push({section_id:_gradeSecId,student_id:parseInt(stId),term:_gradeTerm,component:comp,col_order:parseInt(ord),score});
+  const rows = Object.entries(_gsEdits).map(([key,score]) => {
+    const [stId,comp,ord] = key.split('_');
+    return {section_id:_gradeSecId, student_id:parseInt(stId), term:_gradeTerm, component:comp, col_order:parseInt(ord), score};
+  });
+  try {
+    await api('POST', '/api/grades/scores/bulk', {rows});
+    _gsEdits = {};
+    toast(`✅ Saved ${rows.length} score(s)!`, 'success');
+    loadGradeSheet();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ── Criteria Editor (edit labels, weights, cut-off)
+async function showCriteriaEditor() {
+  const existing = await api('GET', `/api/grades/config/${_gradeSecId}/${_gradeTerm}`).catch(()=>[]);
+  const criteria = buildCriteria(existing);
+
+  showModal(`
+    <div class="modal-header">
+      <div class="modal-title">⚙️ Grading Criteria — ${_gradeTerm==='mt'?'Midterm':'Final Term'}</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px">
+      Edit criteria names and weighted percentages. Total must equal <strong>100%</strong>.
+      Number of columns is set by adding/removing columns in the gradesheet.
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr style="background:var(--surface2)">
+        <th style="padding:8px;text-align:center;width:50px">Code</th>
+        <th style="padding:8px">Criteria Name</th>
+        <th style="padding:8px;text-align:center;width:90px">Weight %</th>
+      </tr></thead>
+      <tbody>
+        ${criteria.map(cr => `<tr style="border-top:1px solid var(--border)">
+          <td style="padding:8px;text-align:center;font-weight:800;font-family:var(--mono)">${cr.code}</td>
+          <td style="padding:6px 8px">
+            ${cr.code==='C4'
+              ? `<span style="color:var(--text3)">Attendance (auto)</span>`
+              : `<input id="cr-label-${cr.code}" value="${cr.label}" style="width:100%;padding:5px 8px;font-size:12px">`}
+          </td>
+          <td style="padding:6px 8px">
+            <input id="cr-weight-${cr.code}" type="number" value="${cr.weight}" min="0" max="100"
+              style="width:70px;padding:5px 8px;font-size:12px;text-align:center"
+              oninput="updateWeightTotal()">
+          </td>
+        </tr>`).join('')}
+        <tr style="border-top:2px solid var(--border);background:var(--surface2)">
+          <td colspan="2" style="padding:8px;text-align:right;font-weight:700;color:var(--purple)">TOTAL</td>
+          <td style="padding:8px;text-align:center;font-weight:800" id="cr-total-display">
+            ${criteria.reduce((a,c)=>a+c.weight,0)}%
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveCriteria()">💾 Save Criteria</button>
+    </div>`, 'modal-md');
+}
+
+function updateWeightTotal() {
+  const codes = ['C1','C2','C3','C4','C5','C6'];
+  const total = codes.reduce((a,c) => {
+    const el = document.getElementById(`cr-weight-${c}`);
+    return a + (el ? parseFloat(el.value)||0 : 0);
+  }, 0);
+  const el = document.getElementById('cr-total-display');
+  if (el) {
+    el.textContent = total + '%';
+    el.style.color = Math.abs(total-100)<0.01 ? 'var(--green)' : 'var(--red)';
   }
-  try{await api('POST','/api/grades/scores/bulk',{rows});_gsEdits={};toast(`Saved ${rows.length} score(s)!`,'success');loadGradeSheet();}
-  catch(e){toast(e.message,'error');}
+}
+
+async function saveCriteria() {
+  const codes = ['C1','C2','C3','C4','C5','C6'];
+  const totalW = codes.reduce((a,c) => {
+    const el = document.getElementById(`cr-weight-${c}`);
+    return a + (el ? parseFloat(el.value)||0 : 0);
+  }, 0);
+  if (Math.abs(totalW-100) > 0.01) {
+    toast(`Total weight is ${totalW}% — must be exactly 100%`, 'error'); return;
+  }
+
+  // Get existing configs to preserve columns
+  const existing = await api('GET', `/api/grades/config/${_gradeSecId}/${_gradeTerm}`).catch(()=>[]);
+
+  const updatedCols = [];
+  codes.forEach(code => {
+    const wEl    = document.getElementById(`cr-weight-${code}`);
+    const lEl    = document.getElementById(`cr-label-${code}`);
+    const weight = wEl ? parseFloat(wEl.value)||0 : 0;
+    const label  = lEl ? lEl.value.trim() : (DEFAULT_CRITERIA.find(d=>d.code===code)?.label||code);
+
+    // Update existing cols for this component
+    const compCols = existing.filter(c => c.component===code);
+    if (compCols.length) {
+      compCols.forEach(col => updatedCols.push({...col, weight, label_group:label}));
+    } else {
+      // No existing cols yet — just store weight via a placeholder
+      // Will be created when user adds first column
+      // For now store as component-level entry
+    }
+  });
+
+  if (updatedCols.length) {
+    try {
+      await api('POST', '/api/grades/config', {section_id:_gradeSecId, term:_gradeTerm, columns:updatedCols});
+      toast('✅ Criteria saved!', 'success');
+      closeModal();
+      loadGradeSheet();
+    } catch(e) { toast(e.message,'error'); }
+  } else {
+    toast('Add columns first, then adjust weights.','info');
+    closeModal();
+  }
 }
 
 async function addGradeCol(secId, term, comp) {
+  const label = DEFAULT_CRITERIA.find(d=>d.code===comp)?.label || comp;
   showModal(`
-    <div class="modal-header"><div class="modal-title">➕ Add ${COMP_LABELS[comp]} Item</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-header"><div class="modal-title">➕ Add Column to ${comp} — ${label}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
     <div class="form-row cols-2">
-      <div class="form-group"><label>Column Label</label><input id="gc-label" placeholder="e.g. Quiz 1"></div>
-      <div class="form-group"><label>Max Score</label><input id="gc-max" type="number" placeholder="e.g. 50" min="1"></div>
+      <div class="form-group">
+        <label>Column Label</label>
+        <input id="gc-label" placeholder="e.g. Quiz 1, Activity 3">
+      </div>
+      <div class="form-group">
+        <label>Max Score</label>
+        <input id="gc-max" type="number" placeholder="e.g. 50" min="1">
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn-primary" onclick="saveGradeCol(${secId},'${term}','${comp}')">💾 Add</button>
+      <button class="btn-primary" onclick="saveGradeCol(${secId},'${term}','${comp}')">➕ Add</button>
     </div>`, 'modal-sm');
 }
 
 async function saveGradeCol(secId, term, comp) {
-  const label=document.getElementById('gc-label').value.trim(),max=parseFloat(document.getElementById('gc-max').value);
-  if(!label||!max){toast('Label and max score required','error');return;}
-  const existing=await api('GET',`/api/grades/config/${secId}/${term}`).catch(()=>[]);
-  const compCols=existing.filter(c=>c.component===comp);
-  const nextOrd=compCols.length?(Math.max(...compCols.map(c=>c.col_order))+1):0;
-  const WEIGHTS=term==='mt'?MT_WEIGHTS:FT_WEIGHTS;
-  const allCols=[...existing,{section_id:secId,term,component:comp,label,weight:WEIGHTS[comp],max_score:max,col_order:nextOrd}];
-  try{await api('POST','/api/grades/config',{section_id:secId,term,columns:allCols});closeModal();toast('Column added!','success');loadGradeSheet();}
-  catch(e){toast(e.message,'error');}
+  const label = document.getElementById('gc-label').value.trim();
+  const max   = parseFloat(document.getElementById('gc-max').value);
+  if (!label || !max) { toast('Label and max score required','error'); return; }
+
+  const existing  = await api('GET', `/api/grades/config/${secId}/${term}`).catch(()=>[]);
+  const compCols  = existing.filter(c => c.component===comp);
+  const nextOrd   = compCols.length ? Math.max(...compCols.map(c=>c.col_order))+1 : 0;
+  const def       = DEFAULT_CRITERIA.find(d=>d.code===comp);
+  const weight    = compCols.length ? compCols[0].weight : (def?.weight||0);
+  const newCol    = {section_id:secId, term, component:comp, label, weight, max_score:max, col_order:nextOrd};
+
+  try {
+    await api('POST', '/api/grades/config', {section_id:secId, term, columns:[...existing, newCol]});
+    closeModal();
+    toast('Column added!','success');
+    loadGradeSheet();
+  } catch(e) { toast(e.message,'error'); }
 }
 
 async function editGradeCol(secId, term, comp, ord, label, max) {
   showModal(`
-    <div class="modal-header"><div class="modal-title">✏️ Edit/Delete Column</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="modal-header"><div class="modal-title">✏️ Edit Column</div><button class="modal-close" onclick="closeModal()">✕</button></div>
     <div class="form-row cols-2">
       <div class="form-group"><label>Label</label><input id="ec-label" value="${label}"></div>
       <div class="form-group"><label>Max Score</label><input id="ec-max" type="number" value="${max}"></div>
     </div>
     <div class="modal-footer">
-      <button class="btn-danger" onclick="deleteGradeCol(${secId},'${term}','${comp}',${ord})">🗑️ Delete</button>
+      <button class="btn-danger" onclick="deleteGradeCol(${secId},'${term}','${comp}',${ord})">🗑️ Delete Column</button>
       <button class="btn-secondary" onclick="closeModal()">Cancel</button>
       <button class="btn-primary" onclick="updateGradeCol(${secId},'${term}','${comp}',${ord})">💾 Save</button>
     </div>`, 'modal-sm');
 }
+
 async function updateGradeCol(secId, term, comp, ord) {
-  const label=document.getElementById('ec-label').value.trim(),max=parseFloat(document.getElementById('ec-max').value);
-  if(!label||!max){toast('Required fields','error');return;}
-  const existing=await api('GET',`/api/grades/config/${secId}/${term}`).catch(()=>[]);
-  const updated=existing.map(c=>(c.component===comp&&c.col_order===ord)?{...c,label,max_score:max}:c);
-  try{await api('POST','/api/grades/config',{section_id:secId,term,columns:updated});closeModal();toast('Updated!','success');loadGradeSheet();}
-  catch(e){toast(e.message,'error');}
+  const label = document.getElementById('ec-label').value.trim();
+  const max   = parseFloat(document.getElementById('ec-max').value);
+  if (!label || !max) { toast('Required fields','error'); return; }
+  const existing = await api('GET', `/api/grades/config/${secId}/${term}`).catch(()=>[]);
+  const updated  = existing.map(c => c.component===comp&&c.col_order===ord ? {...c,label,max_score:max} : c);
+  try {
+    await api('POST', '/api/grades/config', {section_id:secId, term, columns:updated});
+    closeModal(); toast('Updated!','success'); loadGradeSheet();
+  } catch(e) { toast(e.message,'error'); }
 }
+
 async function deleteGradeCol(secId, term, comp, ord) {
-  if(!confirm('Delete this column? All scores in it will also be lost.'))return;
-  const existing=await api('GET',`/api/grades/config/${secId}/${term}`).catch(()=>[]);
-  const updated=existing.filter(c=>!(c.component===comp&&c.col_order===ord));
-  try{await api('POST','/api/grades/config',{section_id:secId,term,columns:updated});closeModal();toast('Deleted','info');loadGradeSheet();}
-  catch(e){toast(e.message,'error');}
+  if (!confirm('Delete this column? All scores in it will be lost.')) return;
+  const existing = await api('GET', `/api/grades/config/${secId}/${term}`).catch(()=>[]);
+  const updated  = existing.filter(c => !(c.component===comp && c.col_order===ord));
+  try {
+    await api('POST', '/api/grades/config', {section_id:secId, term, columns:updated});
+    closeModal(); toast('Deleted','info'); loadGradeSheet();
+  } catch(e) { toast(e.message,'error'); }
 }
 
 /* ══════════════════════════════════════════════════
@@ -2468,74 +2884,187 @@ async function pgMyAttendance(c) {
 }
 
 async function pgMyScores(c) {
-  c.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text3)">⏳ Loading your scores…</div>';
+  c.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text3)">⏳ Loading your grades…</div>';
   const d = await api('GET', '/api/grades/my-scores').catch(()=>null);
-  if (!d) { c.innerHTML='<div class="empty-state"><div class="es-icon">📊</div><div class="es-title">No grade data yet</div></div>'; return; }
+  if (!d) {
+    c.innerHTML = `<div class="empty-state">
+      <div class="es-icon">📊</div>
+      <div class="es-title">No grades yet</div>
+      <p>Your professor hasn't entered grades yet. Check back later.</p>
+    </div>`;
+    return;
+  }
   const {student, configs, scores, att} = d;
-  const scoreMap = Object.fromEntries(scores.map(s=>[`${s.term}_${s.component}_${s.col_order}`,s.score]));
+  const scoreMap = Object.fromEntries(scores.map(s=>[`${s.term}_${s.component}_${s.col_order}`, s.score]));
 
-  function renderTerm(term) {
-    const WEIGHTS = term==='mt' ? MT_WEIGHTS : FT_WEIGHTS;
-    const termConfigs = configs.filter(c=>c.term===term);
-    const compMap = {};
-    for(const comp of ['C1','C2','C3','C5','C6']) compMap[comp]=termConfigs.filter(c=>c.component===comp).sort((a,b)=>a.col_order-b.col_order);
-    let rpg=0;
-    const compRows = ['C1','C2','C3','C5','C6'].map(comp=>{
-      const cols=compMap[comp]; if(!cols.length) return '';
-      let sum=0,cnt=0;
-      const itemRows=cols.map(col=>{
-        const sc=parseFloat(scoreMap[`${term}_${comp}_${col.col_order}`]||0);
-        const mx=parseFloat(col.max_score||0); const prs=mx>0?sc/mx*100:0;
-        if(mx>0){sum+=prs;cnt++;}
-        return `<tr><td style="padding:5px 10px;font-size:12px">${col.label}</td>
-          <td style="padding:5px 10px;text-align:center;font-family:var(--mono);font-size:12px">${sc} / ${mx}</td>
-          <td style="padding:5px 10px;text-align:center;font-size:12px;color:${prs>=75?'var(--green)':prs>=60?'var(--yellow)':'var(--red)'}">${prs.toFixed(1)}%</td></tr>`;
+  function renderTermCard(term) {
+    const termConfigs = configs.filter(c => c.term===term);
+    const codes = ['C1','C2','C3','C4','C5','C6'];
+    const criteria = codes.map(code => {
+      const def  = DEFAULT_CRITERIA.find(d=>d.code===code);
+      const cols = termConfigs.filter(c=>c.component===code).sort((a,b)=>a.col_order-b.col_order);
+      const weight = cols.length ? cols[0].weight : (def?.weight||0);
+      return {code, label: def?.label||code, weight, cols};
+    });
+
+    let rpg = 0;
+    const sections = criteria.map(cr => {
+      if (cr.code === 'C4') {
+        const a = att[term]||{present:0,total:0};
+        const rate = a.total>0 ? (a.present/a.total*100) : 0;
+        const wprs = rate*cr.weight/100;
+        rpg += wprs;
+        return `
+          <div style="border-top:1px solid var(--border);padding:10px 14px;background:rgba(34,197,94,.03)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+              <div>
+                <span style="font-weight:700;font-size:12px">${cr.code}</span>
+                <span style="color:var(--text2);font-size:12px;margin-left:6px">${cr.label}</span>
+                <span class="badge badge-gray" style="margin-left:6px;font-size:10px">${cr.weight}%</span>
+              </div>
+              <div style="font-family:var(--mono);font-weight:800;color:var(--green)">${wprs.toFixed(2)} pts</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div class="progress-bar" style="flex:1;height:8px">
+                <div class="progress-fill" style="width:${Math.min(rate,100)}%;background:${rate>=75?'var(--green)':rate>=60?'var(--yellow)':'var(--red)'}"></div>
+              </div>
+              <span style="font-size:12px;font-weight:700;color:${rate>=75?'var(--green)':rate>=60?'var(--yellow)':'var(--red)'}">
+                ${rate.toFixed(1)}%
+              </span>
+            </div>
+            <div style="font-size:10px;color:var(--text3);margin-top:3px">Based on ${a.total} class sessions</div>
+          </div>`;
+      }
+
+      if (!cr.cols.length) return '';
+      let sum=0, cnt=0;
+      const itemRows = cr.cols.map(col => {
+        const sc  = parseFloat(scoreMap[`${term}_${cr.code}_${col.col_order}`]||0);
+        const mx  = parseFloat(col.max_score||0);
+        const prs = mx>0 ? sc/mx*100 : 0;
+        if (mx>0) { sum+=prs; cnt++; }
+        return `<tr>
+          <td style="padding:4px 8px;font-size:12px;color:var(--text2)">${col.label}</td>
+          <td style="padding:4px 8px;text-align:center;font-family:var(--mono);font-size:12px">${sc}<span style="color:var(--text3)">/${mx}</span></td>
+          <td style="padding:4px 8px;text-align:right">
+            <span style="font-size:11px;font-weight:700;color:${prs>=75?'var(--green)':prs>=60?'var(--yellow)':'var(--red)'}">
+              ${prs.toFixed(1)}%
+            </span>
+          </td>
+        </tr>`;
       }).join('');
-      const aprs=cnt?sum/cnt:0; const wprs=aprs*WEIGHTS[comp]/100;
-      rpg+=wprs;
+
+      const aprs = cnt ? sum/cnt : 0;
+      const wprs = aprs*cr.weight/100;
+      rpg += wprs;
+
       return `
-        <tr style="background:var(--surface2)"><th colspan="3" style="padding:6px 10px;font-size:11px;font-weight:700;text-align:left">${comp} — ${COMP_LABELS[comp]} <span style="font-weight:400;color:var(--text3)">(${WEIGHTS[comp]}%)</span></th></tr>
-        <tr style="background:var(--surface3)"><th style="padding:3px 10px;font-size:10px">Item</th><th style="padding:3px 10px;font-size:10px;text-align:center">Score</th><th style="padding:3px 10px;font-size:10px;text-align:center">PRS%</th></tr>
-        ${itemRows}
-        <tr style="background:rgba(59,130,246,.05)"><td style="padding:5px 10px;font-size:11px;font-weight:700">APRS</td><td colspan="2" style="text-align:center;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--accent)">${aprs.toFixed(2)}%</td></tr>
-        <tr style="background:rgba(59,130,246,.03)"><td style="padding:5px 10px;font-size:11px;font-weight:700">WPRS (×${WEIGHTS[comp]}%)</td><td colspan="2" style="text-align:center;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--accent)">${wprs.toFixed(2)}</td></tr>`;
+        <div style="border-top:1px solid var(--border);padding:10px 14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div>
+              <span style="font-weight:700;font-size:12px">${cr.code}</span>
+              <span style="color:var(--text2);font-size:12px;margin-left:6px">${cr.label}</span>
+              <span class="badge badge-gray" style="margin-left:6px;font-size:10px">${cr.weight}%</span>
+            </div>
+            <div>
+              <span style="font-size:11px;color:var(--text3)">APRS: </span>
+              <span style="font-family:var(--mono);font-weight:700;color:var(--accent)">${aprs.toFixed(1)}%</span>
+              <span style="margin:0 4px;color:var(--text3)">→</span>
+              <span style="font-family:var(--mono);font-weight:800;color:var(--accent)">${wprs.toFixed(2)} pts</span>
+            </div>
+          </div>
+          <table style="width:100%;border-collapse:collapse">
+            <thead><tr style="background:var(--surface3)">
+              <th style="padding:3px 8px;font-size:10px;text-align:left">Item</th>
+              <th style="padding:3px 8px;font-size:10px;text-align:center">Score</th>
+              <th style="padding:3px 8px;font-size:10px;text-align:right">PRS%</th>
+            </tr></thead>
+            <tbody>${itemRows}</tbody>
+          </table>
+        </div>`;
     }).filter(Boolean).join('');
-    // C4 Attendance
-    const a=att[term]||{present:0,total:0};
-    const attRate=a.total>0?(a.present/a.total*100):0;
-    const c4wprs=attRate*WEIGHTS.C4/100;
-    rpg+=c4wprs;
-    const tx=transmute(rpg);
+
+    const tx = transmute(rpg);
+    const termLabel = term==='mt' ? '📘 Midterm' : '📗 Final Term';
+    const termColor = term==='mt' ? 'rgba(59,130,246,.08)' : 'rgba(34,197,94,.06)';
+
     return `
       <div class="card" style="padding:0;overflow:hidden">
-        <div style="padding:12px 16px;background:${term==='mt'?'rgba(59,130,246,.08)':'rgba(34,197,94,.06)'};border-bottom:1px solid var(--border)">
-          <div style="font-size:15px;font-weight:800">${term==='mt'?'📘 Midterm':'📗 Final Term'}</div>
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:${termColor};border-bottom:1px solid var(--border)">
+          <div style="font-size:15px;font-weight:800">${termLabel}</div>
+          <div style="text-align:right">
+            <div style="font-size:10px;color:var(--text3)">RPG</div>
+            <div style="font-family:var(--mono);font-size:20px;font-weight:900;color:var(--accent)">${rpg.toFixed(2)}</div>
+          </div>
         </div>
-        <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse">
-          ${compRows}
-          <tr style="background:var(--surface2)"><th colspan="3" style="padding:6px 10px;font-size:11px;font-weight:700;text-align:left">C4 — Attendance <span style="font-weight:400;color:var(--text3)">(${WEIGHTS.C4}%)</span></th></tr>
-          <tr><td style="padding:5px 10px;font-size:12px">Attendance Rate</td><td colspan="2" style="text-align:center;font-size:12px;color:${attRate>=75?'var(--green)':'var(--red)'}">${attRate.toFixed(1)}%</td></tr>
-          <tr style="background:rgba(59,130,246,.05)"><td style="padding:5px 10px;font-size:11px;font-weight:700">WPRS</td><td colspan="2" style="text-align:center;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--accent)">${c4wprs.toFixed(2)}</td></tr>
-          <tr style="background:rgba(239,68,68,.06);border-top:2px solid var(--border)">
-            <td style="padding:8px 10px;font-size:13px;font-weight:800">RPG</td>
-            <td colspan="2" style="text-align:center;font-family:var(--mono);font-size:18px;font-weight:900;color:var(--accent)">${rpg.toFixed(2)}</td>
-          </tr>
-          <tr>
-            <td style="padding:6px 10px;font-size:12px;font-weight:700">Numerical Grade</td>
-            <td colspan="2" style="text-align:center;font-family:var(--mono);font-size:24px;font-weight:900;color:${parseFloat(tx.grade)<=2.5?'var(--green)':parseFloat(tx.grade)<=3?'var(--yellow)':'var(--red)'}">${tx.grade}</td>
-          </tr>
-          <tr>
-            <td style="padding:4px 10px;font-size:12px">Remarks</td>
-            <td colspan="2" style="text-align:center;font-size:13px;font-weight:700" class="${remarkClass(tx.remarks)}">${tx.remarks}</td>
-          </tr>
-        </table></div>
+        <!-- Score sections -->
+        ${sections}
+        <!-- Final -->
+        <div style="padding:12px 16px;background:rgba(239,68,68,.05);border-top:2px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:11px;color:var(--text3)">Numerical Grade</div>
+            <div style="font-family:var(--mono);font-size:32px;font-weight:900;line-height:1;color:${parseFloat(tx.grade)<=2.5?'var(--green)':parseFloat(tx.grade)<=3?'var(--yellow)':'var(--red)'}">${tx.grade}</div>
+          </div>
+          <div style="text-align:right">
+            <span class="${remarkClass(tx.remarks)}" style="font-size:16px;font-weight:800">${tx.remarks}</span>
+            <div style="font-size:10px;color:var(--text3);margin-top:4px">Cut-off: 60</div>
+          </div>
+        </div>
       </div>`;
   }
 
+  // Final grade computation
+  const mtRPG = (() => {
+    let r=0;
+    const termConfigs = configs.filter(c=>c.term==='mt');
+    ['C1','C2','C3','C5','C6'].forEach(code=>{
+      const cols = termConfigs.filter(c=>c.component===code).sort((a,b)=>a.col_order-b.col_order);
+      if(!cols.length) return;
+      let sum=0,cnt=0;
+      cols.forEach(col=>{const sc=parseFloat(scoreMap[`mt_${code}_${col.col_order}`]||0),mx=parseFloat(col.max_score||0);if(mx>0){sum+=sc/mx*100;cnt++;}});
+      r+=(cnt?sum/cnt:0)*(cols[0].weight/100);
+    });
+    const a=att['mt']||{present:0,total:0};const rate=a.total>0?a.present/a.total*100:0;
+    const c4w = (termConfigs.find(c=>c.component==='C4')?.weight) || (DEFAULT_CRITERIA.find(d=>d.code==='C4')?.weight||10);
+    r+=rate*(c4w/100);
+    return r;
+  })();
+  const ftRPG = (() => {
+    let r=0;
+    const termConfigs = configs.filter(c=>c.term==='ft');
+    ['C1','C2','C3','C5','C6'].forEach(code=>{
+      const cols = termConfigs.filter(c=>c.component===code).sort((a,b)=>a.col_order-b.col_order);
+      if(!cols.length) return;
+      let sum=0,cnt=0;
+      cols.forEach(col=>{const sc=parseFloat(scoreMap[`ft_${code}_${col.col_order}`]||0),mx=parseFloat(col.max_score||0);if(mx>0){sum+=sc/mx*100;cnt++;}});
+      r+=(cnt?sum/cnt:0)*(cols[0].weight/100);
+    });
+    const a=att['ft']||{present:0,total:0};const rate=a.total>0?a.present/a.total*100:0;
+    const c4w = (termConfigs.find(c=>c.component==='C4')?.weight) || (DEFAULT_CRITERIA.find(d=>d.code==='C4')?.weight||10);
+    r+=rate*(c4w/100);
+    return r;
+  })();
+  const finalRPG = (mtRPG + ftRPG) / 2;
+  const finalTx  = transmute(finalRPG);
+
   c.innerHTML = `
-    <div class="grid-2">${renderTerm('mt')}${renderTerm('ft')}</div>`;
+    <!-- Final Grade Banner -->
+    <div class="card mb-4" style="background:linear-gradient(135deg,var(--surface2),var(--surface3));text-align:center;padding:24px">
+      <div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Final Grade</div>
+      <div style="font-family:var(--mono);font-size:64px;font-weight:900;line-height:1;color:${parseFloat(finalTx.grade)<=2.5?'var(--green)':parseFloat(finalTx.grade)<=3?'var(--yellow)':'var(--red)'}">${finalTx.grade}</div>
+      <div class="${remarkClass(finalTx.remarks)}" style="font-size:18px;font-weight:800;margin-top:6px">${finalTx.remarks}</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:8px">
+        MT: ${mtRPG.toFixed(2)} &nbsp;+&nbsp; FT: ${ftRPG.toFixed(2)} &nbsp;÷ 2 = ${finalRPG.toFixed(2)}
+      </div>
+    </div>
+    <!-- Term details -->
+    <div class="grid-2">
+      ${renderTermCard('mt')}
+      ${renderTermCard('ft')}
+    </div>`;
 }
+
 
 async function pgMyCard(c) {
   const students = await api('GET', '/api/students').catch(()=>[]);
@@ -2545,37 +3074,27 @@ async function pgMyCard(c) {
   c.innerHTML = `
     <div style="max-width:460px;margin:0 auto">
       <div class="card" style="text-align:center;padding:32px">
-        <div style="font-size:48px;margin-bottom:16px">${hasCard?'📡':'⚠️'}</div>
-        <div style="font-size:18px;font-weight:800;margin-bottom:6px">${hasCard?'RFID / NFC Card Registered':'No Card Registered'}</div>
-        ${hasCard?`<div style="font-family:var(--mono);font-size:20px;color:var(--accent);margin:12px 0;padding:10px;background:var(--surface2);border-radius:8px">${myData.uid}</div>
-        <div style="font-size:12px;color:var(--text2);margin-bottom:20px">This is your card's UID. Keep it safe.</div>
-        <button class="btn-danger btn-sm" onclick="unregisterMyCard(${myData.tag_id})">🔄 Change / Remove Card</button>`
-        :`<div style="color:var(--text2);margin-bottom:20px;font-size:13px">Register your RFID or NFC card to enable automatic attendance.</div>
-        <div style="margin-bottom:10px">
-          <input id="mc-uid" placeholder="Scan or enter card UID" style="text-align:center;margin-bottom:8px">
-          <button class="btn-primary w-full" style="justify-content:center" onclick="registerMyCard(${myData.id})">📡 Register Card</button>
-          ${('NDEFReader' in window)?`<button class="btn-secondary w-full mt-2" style="justify-content:center" onclick="nfcScanMyCard(${myData.id})">📱 Use NFC</button>`:''}
-        </div>`}
+        <div style="font-size:56px;margin-bottom:16px">${hasCard ? '📡' : '⚠️'}</div>
+        <div style="font-size:18px;font-weight:800;margin-bottom:8px">
+          ${hasCard ? 'RFID Card Registered' : 'No Card Registered'}
+        </div>
+        ${hasCard
+          ? `<div style="font-family:var(--mono);font-size:22px;font-weight:800;color:var(--accent);
+               margin:16px 0;padding:12px;background:var(--surface2);border-radius:8px;
+               letter-spacing:.1em">${myData.uid}</div>
+             <div style="font-size:12px;color:var(--text2);margin-bottom:8px">
+               Your RFID card is linked to your account.<br>
+               Contact your professor to change your card.
+             </div>
+             <span class="badge badge-green" style="font-size:12px;padding:6px 14px">✅ Active</span>`
+          : `<div style="color:var(--text2);margin-bottom:20px;font-size:13px">
+               You don't have a registered RFID card yet.<br>
+               Please approach your professor to register your card.
+             </div>
+             <span class="badge badge-orange" style="font-size:12px;padding:6px 14px">⚠️ No Card</span>`
+        }
       </div>
     </div>`;
-}
-
-async function registerMyCard(stId) {
-  const uid=(document.getElementById('mc-uid')?.value||'').trim().toUpperCase();
-  if(uid.length<4){toast('Enter valid UID','error');return;}
-  try{await api('POST','/api/rfid',{uid,student_id:stId,self_registered:true});toast('Card registered!','success');pgMyCard(document.getElementById('content'));}
-  catch(e){toast(e.message,'error');}
-}
-async function unregisterMyCard(tagId) {
-  if(!confirm('Remove your card? You will need to register again to use attendance scanning.'))return;
-  try{await api('DELETE',`/api/rfid/${tagId}`);toast('Card removed','info');pgMyCard(document.getElementById('content'));}
-  catch(e){toast(e.message,'error');}
-}
-async function nfcScanMyCard(stId) {
-  try {
-    const r=new NDEFReader();await r.scan();toast('📡 Tap your card…','info');
-    r.onreading=async(e)=>{const uid=e.serialNumber.replace(/:/g,'').toUpperCase();document.getElementById('mc-uid').value=uid;await registerMyCard(stId);};
-  }catch(e){toast('NFC: '+e.message,'error');}
 }
 
 /* ══════════════════════════════════════════════════
