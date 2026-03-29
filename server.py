@@ -1,6 +1,4 @@
-"""
-EduTrack Pro — Flask + SQLite Backend
-"""
+"""EduTrack Pro — Flask + SQLite"""
 import sqlite3, bcrypt, os
 from datetime import datetime, timedelta, timezone
 from functools import wraps
@@ -8,18 +6,23 @@ import jwt
 from flask import Flask, request, jsonify, g, send_from_directory, send_file
 from flask_cors import CORS
 
-BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
-_default   = os.path.join(BASE_DIR, 'database', 'edutrack.db')
-DB_PATH    = os.environ.get('DB_PATH', _default)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Ensure DB directory exists at startup
-try:
-    _db_dir = os.path.dirname(os.path.abspath(DB_PATH))
-    os.makedirs(_db_dir, exist_ok=True)
-    print(f"[CONFIG] DB_PATH = {DB_PATH} (dir OK)")
-except Exception as _e:
-    DB_PATH = '/tmp/edutrack.db'
-    print(f"[CONFIG] Fallback DB_PATH = {DB_PATH} (reason: {_e})")
+# DB_PATH: use env var, else /tmp on Railway, else local database/
+_env_path = os.environ.get('DB_PATH', '')
+if _env_path:
+    DB_PATH = _env_path
+else:
+    # Try local database folder, fallback to /tmp
+    _local = os.path.join(BASE_DIR, 'database', 'edutrack.db')
+    try:
+        os.makedirs(os.path.join(BASE_DIR, 'database'), exist_ok=True)
+        DB_PATH = _local
+    except:
+        DB_PATH = '/tmp/edutrack.db'
+
+print(f"[STARTUP] DB_PATH={DB_PATH}")
+
 JWT_SECRET = os.environ.get('JWT_SECRET', 'edutrack-pro-secret-2025-xyz')
 JWT_EXPIRY = 72
 
@@ -27,13 +30,13 @@ app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)
 
 @app.after_request
-def add_cors(response):
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS,PATCH'
-    if request.path == '/' or not request.path.startswith('/api/'):
-        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    return response
+def add_cors(r):
+    r.headers['Access-Control-Allow-Origin'] = '*'
+    r.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    r.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS,PATCH'
+    if not request.path.startswith('/api/'):
+        r.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    return r
 
 @app.route('/api/<path:path>', methods=['OPTIONS'])
 def handle_options(path):
@@ -65,7 +68,7 @@ def XM(sql, rows):
     db = get_db(); db.executemany(sql, rows); db.commit()
 
 def init_db():
-    print(f"[INIT_DB] Using DB: {DB_PATH}")
+    print(f"[INIT_DB] Connecting to {DB_PATH}")
     db = sqlite3.connect(DB_PATH)
     db.execute("PRAGMA foreign_keys=ON")
     db.executescript("""
@@ -179,39 +182,42 @@ def init_db():
         UNIQUE(section_id, student_id, term, component, col_order)
     );
     """)
-    # Auto-migrate for older DBs
-    for _m in [
+    # Migrate old DBs
+    for m in [
         "ALTER TABLE academic_years ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1",
         "ALTER TABLE semesters ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1",
         "ALTER TABLE sections ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1",
     ]:
-        try: db.execute(_m)
+        try: db.execute(m)
         except: pass
     # Seed admin
     row = db.execute("SELECT id FROM users WHERE role='admin' LIMIT 1").fetchone()
     if not row:
         pw = bcrypt.hashpw(b'admin123', bcrypt.gensalt()).decode()
         db.execute("INSERT INTO users (role,username,password,name) VALUES ('admin','admin',?,?)", (pw,'Administrator'))
-    db.commit(); db.close()
-    print(f"✅ DB ready: {DB_PATH}")
+    # Fix bad password
+    else:
+        u = db.execute("SELECT password FROM users WHERE username='admin'").fetchone()
+        if u and not bcrypt.checkpw(b'admin123', u[0].encode()):
+            pw = bcrypt.hashpw(b'admin123', bcrypt.gensalt()).decode()
+            db.execute("UPDATE users SET password=? WHERE username='admin'", (pw,))
+            print("[INIT_DB] Admin password reset")
+    db.commit()
+    db.close()
+    print(f"[INIT_DB] ✅ Done — DB={DB_PATH}")
 
-def _verify_admin():
+# Run init_db NOW at module level — before any routes, before gunicorn serves
+try:
+    init_db()
+except Exception as _e:
+    print(f"[INIT_DB ERROR] {_e}")
+    # Last resort fallback
+    DB_PATH = '/tmp/edutrack.db'
+    print(f"[INIT_DB] Retrying with /tmp/edutrack.db")
     try:
-        db = sqlite3.connect(DB_PATH)
-        db.row_factory = sqlite3.Row
-        u = db.execute("SELECT * FROM users WHERE username='admin' AND role='admin'").fetchone()
-        if u:
-            ok = bcrypt.checkpw(b'admin123', u['password'].encode())
-            if not ok:
-                pw = bcrypt.hashpw(b'admin123', bcrypt.gensalt()).decode()
-                db.execute("UPDATE users SET password=? WHERE username='admin'", (pw,))
-                db.commit()
-                print("⚠️  Admin password reset to admin123")
-            else:
-                print("✅ Admin password OK")
-        db.close()
-    except Exception as e:
-        print(f"⚠️  verify_admin error: {e}")
+        init_db()
+    except Exception as _e2:
+        print(f"[INIT_DB FATAL] {_e2}")
 
 # ── JWT ───────────────────────────────────────────────────────────────────
 def make_token(uid, role):
@@ -224,20 +230,17 @@ def verify_token(token):
         p['sub'] = int(p['sub'])
         return p
     except Exception as e:
-        print(f"[JWT ERROR] {type(e).__name__}: {e}")
+        print(f"[JWT] {type(e).__name__}: {e}")
         return None
 
 def get_token():
-    auth = request.headers.get('Authorization', '')
-    if auth.startswith('Bearer '):
-        return auth[7:].strip()
-    return ''
+    a = request.headers.get('Authorization', '')
+    return a[7:].strip() if a.startswith('Bearer ') else ''
 
 def auth_required(f):
     @wraps(f)
     def w(*a, **kw):
-        tok = get_token()
-        p = verify_token(tok)
+        p = verify_token(get_token())
         if not p: return jsonify({'error':'Unauthorized'}), 401
         g.user_id = p['sub']; g.role = p['role']
         return f(*a, **kw)
@@ -246,8 +249,7 @@ def auth_required(f):
 def admin_required(f):
     @wraps(f)
     def w(*a, **kw):
-        tok = get_token()
-        p = verify_token(tok)
+        p = verify_token(get_token())
         if not p: return jsonify({'error':'Unauthorized'}), 401
         if p['role'] != 'admin': return jsonify({'error':'Admin only'}), 403
         g.user_id = p['sub']; g.role = 'admin'
@@ -257,14 +259,8 @@ def admin_required(f):
 # ── AUTH ──────────────────────────────────────────────────────────────────
 @app.route('/api/auth/login', methods=['POST'])
 def login():
-    global _db_initialized
-    if not _db_initialized:
-        init_db()
-        _verify_admin()
-        _db_initialized = True
     d = request.json or {}
-    role = d.get('role', 'admin')
-    if role == 'admin':
+    if d.get('role','admin') == 'admin':
         u = Q("SELECT * FROM users WHERE role='admin' AND username=?", (d.get('username',''),), one=True)
         if not u or not bcrypt.checkpw(d.get('password','').encode(), u['password'].encode()):
             return jsonify({'error':'Invalid username or password'}), 401
@@ -372,10 +368,10 @@ def get_active_semester():
     return jsonify(sem or {})
 
 # ── SECTIONS ──────────────────────────────────────────────────────────────
-def _sec_query():
+def _sq():
     return "SELECT sec.*, sem.label AS sem_label, a.year AS ay_year FROM sections sec JOIN semesters sem ON sec.sem_id=sem.id JOIN academic_years a ON sem.ay_id=a.id"
 
-def _attach_slots(secs):
+def _slots(secs):
     for s in secs:
         s['slots'] = Q("SELECT * FROM schedule_slots WHERE section_id=? ORDER BY id", (s['id'],))
         s['student_count'] = Q("SELECT COUNT(*) AS c FROM students WHERE section_id=?", (s['id'],), one=True)['c']
@@ -390,25 +386,22 @@ def get_sections():
         if not u or not u['student_id']: return jsonify([])
         st = Q("SELECT section_id FROM students WHERE id=?", (u['student_id'],), one=True)
         if not st: return jsonify([])
-        return jsonify(_attach_slots(Q(_sec_query()+" WHERE sec.id=?", (st['section_id'],))))
+        return jsonify(_slots(Q(_sq()+" WHERE sec.id=?", (st['section_id'],))))
     if sem_id:
-        secs = Q(_sec_query()+" WHERE sec.sem_id=?", (sem_id,))
-    else:
-        secs = Q(_sec_query()+" WHERE sec.user_id=? ORDER BY a.year DESC", (g.user_id,))
-    return jsonify(_attach_slots(secs))
+        return jsonify(_slots(Q(_sq()+" WHERE sec.sem_id=?", (sem_id,))))
+    return jsonify(_slots(Q(_sq()+" WHERE sec.user_id=? ORDER BY a.year DESC", (g.user_id,))))
 
 @app.route('/api/sections', methods=['POST'])
 @admin_required
 def create_section():
     d = request.json or {}
-    sem_id = d.get('sem_id')
-    if not sem_id or not d.get('name'): return jsonify({'error':'sem_id and name required'}), 400
-    sec_id = X("INSERT INTO sections (sem_id,user_id,name,subject_code,subject_full,program,year_level,subject_type,professor,late_threshold) VALUES (?,?,?,?,?,?,?,?,?,?)",
-               (sem_id, g.user_id, d['name'], d.get('subject_code',''), d.get('subject_full',''), d.get('program','BSIT'), d.get('year_level',3), d.get('subject_type','lec-lab'), d.get('professor',''), d.get('late_threshold',15)))
+    if not d.get('sem_id') or not d.get('name'): return jsonify({'error':'sem_id and name required'}), 400
+    sid = X("INSERT INTO sections (sem_id,user_id,name,subject_code,subject_full,program,year_level,subject_type,professor,late_threshold) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (d['sem_id'], g.user_id, d['name'], d.get('subject_code',''), d.get('subject_full',''), d.get('program','BSIT'), d.get('year_level',3), d.get('subject_type','lec-lab'), d.get('professor',''), d.get('late_threshold',15)))
     if d.get('slots'):
         XM("INSERT INTO schedule_slots (section_id,day,slot_type,time_start,time_end,room) VALUES (?,?,?,?,?,?)",
-           [(sec_id, s['day'], s.get('type', s.get('slot_type','lecture')), s.get('timeStart', s.get('time_start','')), s.get('timeEnd', s.get('time_end','')), s.get('room','')) for s in d['slots']])
-    return jsonify({'id': sec_id})
+           [(sid, s['day'], s.get('slot_type', s.get('type','lecture')), s.get('time_start', s.get('timeStart','')), s.get('time_end', s.get('timeEnd','')), s.get('room','')) for s in d['slots']])
+    return jsonify({'id': sid})
 
 @app.route('/api/sections/<int:sec_id>', methods=['PUT'])
 @admin_required
@@ -419,7 +412,7 @@ def update_section(sec_id):
     X("DELETE FROM schedule_slots WHERE section_id=?", (sec_id,))
     if d.get('slots'):
         XM("INSERT INTO schedule_slots (section_id,day,slot_type,time_start,time_end,room) VALUES (?,?,?,?,?,?)",
-           [(sec_id, s['day'], s.get('type', s.get('slot_type','lecture')), s.get('timeStart', s.get('time_start','')), s.get('timeEnd', s.get('time_end','')), s.get('room','')) for s in d['slots']])
+           [(sec_id, s['day'], s.get('slot_type', s.get('type','lecture')), s.get('time_start', s.get('timeStart','')), s.get('time_end', s.get('timeEnd','')), s.get('room','')) for s in d['slots']])
     return jsonify({'ok': True})
 
 @app.route('/api/sections/<int:sec_id>', methods=['DELETE'])
@@ -432,23 +425,18 @@ def delete_section(sec_id):
 @app.route('/api/students', methods=['GET'])
 @auth_required
 def get_students():
-    sec_id = request.args.get('section_id')
-    sem_id = request.args.get('sem_id')
-    q_str  = request.args.get('q','')
-    base   = "SELECT s.*, r.uid, r.id AS tag_id, sec.name AS section_name FROM students s JOIN sections sec ON s.section_id=sec.id LEFT JOIN rfid_tags r ON s.id=r.student_id"
+    base = "SELECT s.*, r.uid, r.id AS tag_id, sec.name AS section_name FROM students s JOIN sections sec ON s.section_id=sec.id LEFT JOIN rfid_tags r ON s.id=r.student_id"
+    sec_id = request.args.get('section_id'); sem_id = request.args.get('sem_id'); q = request.args.get('q','')
     if g.role == 'student':
         u = Q("SELECT student_id FROM users WHERE id=?", (g.user_id,), one=True)
         if not u or not u['student_id']: return jsonify([])
         st = Q(base+" WHERE s.id=?", (u['student_id'],), one=True)
         return jsonify([st] if st else [])
-    if sec_id:
-        rows = Q(base+" WHERE s.section_id=? ORDER BY s.full_name", (sec_id,))
-    elif sem_id:
-        rows = Q(base+" WHERE sec.sem_id=? ORDER BY sec.name, s.full_name", (sem_id,))
-    else:
-        rows = Q(base+" WHERE sec.user_id=? ORDER BY sec.name, s.full_name", (g.user_id,))
-    if q_str:
-        ql = q_str.lower()
+    if sec_id: rows = Q(base+" WHERE s.section_id=? ORDER BY s.full_name", (sec_id,))
+    elif sem_id: rows = Q(base+" WHERE sec.sem_id=? ORDER BY sec.name,s.full_name", (sem_id,))
+    else: rows = Q(base+" WHERE sec.user_id=? ORDER BY sec.name,s.full_name", (g.user_id,))
+    if q:
+        ql = q.lower()
         rows = [r for r in rows if ql in r['full_name'].lower() or ql in r['student_no']]
     return jsonify(rows)
 
@@ -458,8 +446,7 @@ def create_student():
     d = request.json or {}
     sno = d.get('student_no','').strip(); name = d.get('full_name','').strip(); sec_id = d.get('section_id')
     if not sno or not name or not sec_id: return jsonify({'error':'student_no, full_name, section_id required'}), 400
-    if Q("SELECT id FROM students WHERE student_no=?", (sno,), one=True):
-        return jsonify({'error':'Duplicate student number'}), 400
+    if Q("SELECT id FROM students WHERE student_no=?", (sno,), one=True): return jsonify({'error':'Duplicate student number'}), 400
     st_id = X("INSERT INTO students (section_id,student_no,full_name,gender,year_level) VALUES (?,?,?,?,?)",
               (sec_id, sno, name, d.get('gender','M'), d.get('year_level','3rd Year')))
     pw = bcrypt.hashpw(sno.encode(), bcrypt.gensalt()).decode()
@@ -476,19 +463,19 @@ def import_students():
     for r in rows:
         sno = str(r.get('student_no','')).strip(); name = str(r.get('full_name','')).strip()
         if not sno or not name: continue
-        if Q("SELECT id FROM students WHERE student_no=?", (sno,), one=True): skipped += 1; continue
+        if Q("SELECT id FROM students WHERE student_no=?", (sno,), one=True): skipped+=1; continue
         st_id = X("INSERT INTO students (section_id,student_no,full_name,gender,year_level) VALUES (?,?,?,?,?)",
                   (sec_id, sno, name, r.get('gender','M'), r.get('year_level','3rd Year')))
         pw = bcrypt.hashpw(sno.encode(), bcrypt.gensalt()).decode()
         X("INSERT OR IGNORE INTO users (role,username,password,name,student_id) VALUES ('student',?,?,?,?)", (sno, pw, name, st_id))
-        added += 1
+        added+=1
     return jsonify({'added': added, 'skipped': skipped})
 
 @app.route('/api/students/<int:st_id>', methods=['PUT'])
 @admin_required
 def update_student(st_id):
     d = request.json or {}
-    st = Q("SELECT s.id, s.section_id FROM students s JOIN sections sec ON s.section_id=sec.id WHERE s.id=?", (st_id,), one=True)
+    st = Q("SELECT id,section_id FROM students WHERE id=?", (st_id,), one=True)
     if not st: return jsonify({'error':'Not found'}), 404
     X("UPDATE students SET full_name=?,gender=?,year_level=?,section_id=? WHERE id=?",
       (d.get('full_name'), d.get('gender'), d.get('year_level'), d.get('section_id', st['section_id']), st_id))
@@ -509,10 +496,8 @@ def delete_student(st_id):
 def get_rfid():
     sem_id = request.args.get('sem_id')
     if sem_id:
-        rows = Q("SELECT r.*, s.full_name, s.student_no, sec.name AS section_name FROM rfid_tags r JOIN students s ON r.student_id=s.id JOIN sections sec ON s.section_id=sec.id WHERE sec.sem_id=?", (sem_id,))
-    else:
-        rows = Q("SELECT r.*, s.full_name, s.student_no, sec.name AS section_name FROM rfid_tags r JOIN students s ON r.student_id=s.id JOIN sections sec ON s.section_id=sec.id WHERE sec.user_id=?", (g.user_id,))
-    return jsonify(rows)
+        return jsonify(Q("SELECT r.*,s.full_name,s.student_no,sec.name AS section_name FROM rfid_tags r JOIN students s ON r.student_id=s.id JOIN sections sec ON s.section_id=sec.id WHERE sec.sem_id=?", (sem_id,)))
+    return jsonify(Q("SELECT r.*,s.full_name,s.student_no,sec.name AS section_name FROM rfid_tags r JOIN students s ON r.student_id=s.id JOIN sections sec ON s.section_id=sec.id WHERE sec.user_id=?", (g.user_id,)))
 
 @app.route('/api/rfid', methods=['POST'])
 @auth_required
@@ -520,23 +505,20 @@ def register_rfid():
     d = request.json or {}
     uid = d.get('uid','').strip().upper(); student_id = d.get('student_id')
     if not uid or not student_id: return jsonify({'error':'uid and student_id required'}), 400
-    if Q("SELECT id FROM rfid_tags WHERE uid=?", (uid,), one=True):
-        return jsonify({'error':'Card already registered to another student'}), 400
-    if Q("SELECT id FROM rfid_tags WHERE student_id=?", (student_id,), one=True):
-        return jsonify({'error':'Student already has a card'}), 400
+    if Q("SELECT id FROM rfid_tags WHERE uid=?", (uid,), one=True): return jsonify({'error':'Card already registered'}), 400
+    if Q("SELECT id FROM rfid_tags WHERE student_id=?", (student_id,), one=True): return jsonify({'error':'Student already has card'}), 400
     tag_id = X("INSERT INTO rfid_tags (student_id,uid,self_registered) VALUES (?,?,?)", (student_id, uid, 1 if d.get('self_registered') else 0))
     return jsonify({'id': tag_id, 'uid': uid})
 
 @app.route('/api/rfid/<int:tag_id>', methods=['DELETE'])
 @auth_required
 def delete_rfid(tag_id):
-    X("DELETE FROM rfid_tags WHERE id=?", (tag_id,))
-    return jsonify({'ok': True})
+    X("DELETE FROM rfid_tags WHERE id=?", (tag_id,)); return jsonify({'ok': True})
 
 @app.route('/api/rfid/lookup/<uid>', methods=['GET'])
 @auth_required
 def lookup_rfid(uid):
-    tag = Q("SELECT r.*, s.id AS student_id, s.full_name, s.student_no, s.section_id, sec.name AS section_name FROM rfid_tags r JOIN students s ON r.student_id=s.id JOIN sections sec ON s.section_id=sec.id WHERE r.uid=?", (uid.upper(),), one=True)
+    tag = Q("SELECT r.*,s.id AS student_id,s.full_name,s.student_no,s.section_id,sec.name AS section_name FROM rfid_tags r JOIN students s ON r.student_id=s.id JOIN sections sec ON s.section_id=sec.id WHERE r.uid=?", (uid.upper(),), one=True)
     if not tag: return jsonify({'error':'Not found'}), 404
     return jsonify(tag)
 
@@ -544,17 +526,13 @@ def lookup_rfid(uid):
 @app.route('/api/sessions', methods=['GET'])
 @auth_required
 def get_sessions():
-    sec_id = request.args.get('section_id')
-    sem_id = request.args.get('sem_id')
-    base   = "SELECT s.*, sec.name AS section_name, sec.subject_code FROM sessions s JOIN sections sec ON s.section_id=sec.id"
-    if sec_id:
-        rows = Q(base+" WHERE s.section_id=? ORDER BY s.start_ts DESC", (sec_id,))
-    elif sem_id:
-        rows = Q(base+" WHERE sec.sem_id=? ORDER BY s.start_ts DESC", (sem_id,))
-    else:
-        rows = Q(base+" WHERE sec.user_id=? ORDER BY s.start_ts DESC LIMIT 100", (g.user_id,))
+    sec_id = request.args.get('section_id'); sem_id = request.args.get('sem_id')
+    base = "SELECT s.*,sec.name AS section_name,sec.subject_code FROM sessions s JOIN sections sec ON s.section_id=sec.id"
+    if sec_id: rows = Q(base+" WHERE s.section_id=? ORDER BY s.start_ts DESC", (sec_id,))
+    elif sem_id: rows = Q(base+" WHERE sec.sem_id=? ORDER BY s.start_ts DESC", (sem_id,))
+    else: rows = Q(base+" WHERE sec.user_id=? ORDER BY s.start_ts DESC LIMIT 100", (g.user_id,))
     for row in rows:
-        cts = Q("SELECT status, COUNT(*) AS c FROM attendance WHERE session_id=? GROUP BY status", (row['id'],))
+        cts = Q("SELECT status,COUNT(*) AS c FROM attendance WHERE session_id=? GROUP BY status", (row['id'],))
         row['counts'] = {r['status']:r['c'] for r in cts}
     return jsonify(rows)
 
@@ -562,11 +540,10 @@ def get_sessions():
 @admin_required
 def start_session():
     d = request.json or {}
-    sec_id = d.get('section_id')
-    if not sec_id: return jsonify({'error':'section_id required'}), 400
-    X("UPDATE sessions SET is_open=0, end_ts=datetime('now') WHERE section_id=? AND is_open=1", (sec_id,))
+    if not d.get('section_id'): return jsonify({'error':'section_id required'}), 400
+    X("UPDATE sessions SET is_open=0,end_ts=datetime('now') WHERE section_id=? AND is_open=1", (d['section_id'],))
     sid = X("INSERT INTO sessions (section_id,slot_id,term,sched_day,slot_type,time_start,time_end,room) VALUES (?,?,?,?,?,?,?,?)",
-            (sec_id, d.get('slot_id'), d.get('term','mt'), d.get('sched_day',''), d.get('slot_type','lecture'), d.get('time_start',''), d.get('time_end',''), d.get('room','')))
+            (d['section_id'], d.get('slot_id'), d.get('term','mt'), d.get('sched_day',''), d.get('slot_type','lecture'), d.get('time_start',''), d.get('time_end',''), d.get('room','')))
     return jsonify({'id': sid})
 
 @app.route('/api/sessions/<int:sid>/close', methods=['PUT'])
@@ -574,20 +551,17 @@ def start_session():
 def close_session(sid):
     sess = Q("SELECT * FROM sessions WHERE id=?", (sid,), one=True)
     if not sess: return jsonify({'error':'Not found'}), 404
-    students  = Q("SELECT id FROM students WHERE section_id=?", (sess['section_id'],))
-    recorded  = {r['student_id'] for r in Q("SELECT student_id FROM attendance WHERE session_id=?", (sid,))}
-    absent    = [s['id'] for s in students if s['id'] not in recorded]
-    if absent:
-        XM("INSERT OR IGNORE INTO attendance (session_id,student_id,status) VALUES (?,?,'absent')", [(sid, s) for s in absent])
-    X("UPDATE sessions SET is_open=0, end_ts=datetime('now') WHERE id=?", (sid,))
+    students = Q("SELECT id FROM students WHERE section_id=?", (sess['section_id'],))
+    recorded = {r['student_id'] for r in Q("SELECT student_id FROM attendance WHERE session_id=?", (sid,))}
+    absent = [s['id'] for s in students if s['id'] not in recorded]
+    if absent: XM("INSERT OR IGNORE INTO attendance (session_id,student_id,status) VALUES (?,?,'absent')", [(sid,s) for s in absent])
+    X("UPDATE sessions SET is_open=0,end_ts=datetime('now') WHERE id=?", (sid,))
     return jsonify({'ok': True, 'absent_marked': len(absent)})
 
 @app.route('/api/sessions/<int:sid>', methods=['DELETE'])
 @admin_required
 def delete_session(sid):
-    X("DELETE FROM attendance WHERE session_id=?", (sid,))
-    X("DELETE FROM sessions WHERE id=?", (sid,))
-    return jsonify({'ok': True})
+    X("DELETE FROM attendance WHERE session_id=?", (sid,)); X("DELETE FROM sessions WHERE id=?", (sid,)); return jsonify({'ok': True})
 
 # ── ATTENDANCE ────────────────────────────────────────────────────────────
 @app.route('/api/attendance', methods=['POST'])
@@ -597,60 +571,57 @@ def record_attendance():
     sid = d.get('session_id'); stid = d.get('student_id'); status = d.get('status','present')
     if not sid or not stid: return jsonify({'error':'session_id and student_id required'}), 400
     ts = datetime.now().isoformat()
-    ex = Q("SELECT id FROM attendance WHERE session_id=? AND student_id=?", (sid, stid), one=True)
+    ex = Q("SELECT id FROM attendance WHERE session_id=? AND student_id=?", (sid,stid), one=True)
     if ex:
         X("UPDATE attendance SET status=?,note=?,timestamp=? WHERE id=?", (status, d.get('note',''), ts, ex['id']))
         return jsonify({'updated': True, 'id': ex['id']})
-    aid = X("INSERT INTO attendance (session_id,student_id,status,note,timestamp) VALUES (?,?,?,?,?)", (sid, stid, status, d.get('note',''), ts))
+    aid = X("INSERT INTO attendance (session_id,student_id,status,note,timestamp) VALUES (?,?,?,?,?)", (sid,stid,status,d.get('note',''),ts))
     return jsonify({'id': aid, 'status': status})
 
 @app.route('/api/attendance/<int:aid>', methods=['PUT'])
 @auth_required
 def update_attendance(aid):
     d = request.json or {}
-    X("UPDATE attendance SET status=?,note=? WHERE id=?", (d.get('status'), d.get('note',''), aid))
-    return jsonify({'ok': True})
+    X("UPDATE attendance SET status=?,note=? WHERE id=?", (d.get('status'), d.get('note',''), aid)); return jsonify({'ok': True})
 
 @app.route('/api/attendance/session/<int:sid>', methods=['GET'])
 @auth_required
 def get_session_attendance(sid):
-    return jsonify(Q("SELECT a.*, s.full_name, s.student_no FROM attendance a JOIN students s ON a.student_id=s.id WHERE a.session_id=? ORDER BY s.full_name", (sid,)))
+    return jsonify(Q("SELECT a.*,s.full_name,s.student_no FROM attendance a JOIN students s ON a.student_id=s.id WHERE a.session_id=? ORDER BY s.full_name", (sid,)))
 
 @app.route('/api/attendance/student/<int:st_id>', methods=['GET'])
 @auth_required
 def get_student_attendance(st_id):
-    return jsonify(Q("SELECT a.*, ss.start_ts, ss.sched_day, ss.slot_type, ss.term, ss.time_start FROM attendance a JOIN sessions ss ON a.session_id=ss.id WHERE a.student_id=? ORDER BY ss.start_ts DESC", (st_id,)))
+    return jsonify(Q("SELECT a.*,ss.start_ts,ss.sched_day,ss.slot_type,ss.term,ss.time_start FROM attendance a JOIN sessions ss ON a.session_id=ss.id WHERE a.student_id=? ORDER BY ss.start_ts DESC", (st_id,)))
 
 @app.route('/api/attendance/summary/<int:sec_id>', methods=['GET'])
 @auth_required
 def attendance_summary(sec_id):
     term = request.args.get('term')
     if term:
-        rows = Q("""SELECT s.id AS student_id, s.full_name, s.student_no,
-                    COUNT(CASE WHEN a.status='present' THEN 1 END) AS present,
-                    COUNT(CASE WHEN a.status='late' THEN 1 END) AS late,
-                    COUNT(CASE WHEN a.status='excuse' THEN 1 END) AS excuse,
-                    COUNT(CASE WHEN a.status='absent' THEN 1 END) AS absent,
-                    COUNT(a.id) AS total
-                    FROM students s LEFT JOIN attendance a ON s.id=a.student_id
-                    LEFT JOIN sessions ss ON a.session_id=ss.id AND ss.term=?
-                    WHERE s.section_id=? GROUP BY s.id ORDER BY s.full_name""", (term, sec_id))
-    else:
-        rows = Q("""SELECT s.id AS student_id, s.full_name, s.student_no,
-                    COUNT(CASE WHEN a.status='present' THEN 1 END) AS present,
-                    COUNT(CASE WHEN a.status='late' THEN 1 END) AS late,
-                    COUNT(CASE WHEN a.status='excuse' THEN 1 END) AS excuse,
-                    COUNT(CASE WHEN a.status='absent' THEN 1 END) AS absent,
-                    COUNT(a.id) AS total
-                    FROM students s LEFT JOIN attendance a ON s.id=a.student_id
-                    WHERE s.section_id=? GROUP BY s.id ORDER BY s.full_name""", (sec_id,))
-    return jsonify(rows)
+        return jsonify(Q("""SELECT s.id AS student_id,s.full_name,s.student_no,
+            COUNT(CASE WHEN a.status='present' THEN 1 END) AS present,
+            COUNT(CASE WHEN a.status='late' THEN 1 END) AS late,
+            COUNT(CASE WHEN a.status='excuse' THEN 1 END) AS excuse,
+            COUNT(CASE WHEN a.status='absent' THEN 1 END) AS absent,
+            COUNT(a.id) AS total
+            FROM students s LEFT JOIN attendance a ON s.id=a.student_id
+            LEFT JOIN sessions ss ON a.session_id=ss.id AND ss.term=?
+            WHERE s.section_id=? GROUP BY s.id ORDER BY s.full_name""", (term,sec_id)))
+    return jsonify(Q("""SELECT s.id AS student_id,s.full_name,s.student_no,
+        COUNT(CASE WHEN a.status='present' THEN 1 END) AS present,
+        COUNT(CASE WHEN a.status='late' THEN 1 END) AS late,
+        COUNT(CASE WHEN a.status='excuse' THEN 1 END) AS excuse,
+        COUNT(CASE WHEN a.status='absent' THEN 1 END) AS absent,
+        COUNT(a.id) AS total
+        FROM students s LEFT JOIN attendance a ON s.id=a.student_id
+        WHERE s.section_id=? GROUP BY s.id ORDER BY s.full_name""", (sec_id,)))
 
 # ── GRADES ────────────────────────────────────────────────────────────────
 @app.route('/api/grades/config/<int:sec_id>/<term>', methods=['GET'])
 @auth_required
 def get_grade_config(sec_id, term):
-    return jsonify(Q("SELECT * FROM grade_configs WHERE section_id=? AND term=? ORDER BY component, col_order", (sec_id, term)))
+    return jsonify(Q("SELECT * FROM grade_configs WHERE section_id=? AND term=? ORDER BY component,col_order", (sec_id,term)))
 
 @app.route('/api/grades/config', methods=['POST'])
 @admin_required
@@ -658,16 +629,16 @@ def save_grade_config():
     d = request.json or {}
     sec_id = d.get('section_id'); term = d.get('term'); cols = d.get('columns',[])
     if not sec_id or not term: return jsonify({'error':'section_id and term required'}), 400
-    X("DELETE FROM grade_configs WHERE section_id=? AND term=?", (sec_id, term))
+    X("DELETE FROM grade_configs WHERE section_id=? AND term=?", (sec_id,term))
     if cols:
         XM("INSERT INTO grade_configs (section_id,term,component,label,weight,max_score,col_order) VALUES (?,?,?,?,?,?,?)",
-           [(sec_id, term, c['component'], c['label'], c['weight'], c.get('max_score',0), c.get('col_order',0)) for c in cols])
+           [(sec_id,term,c['component'],c['label'],c['weight'],c.get('max_score',0),c.get('col_order',0)) for c in cols])
     return jsonify({'ok': True})
 
 @app.route('/api/grades/scores/<int:sec_id>/<term>', methods=['GET'])
 @auth_required
 def get_grade_scores(sec_id, term):
-    return jsonify(Q("SELECT * FROM grade_scores WHERE section_id=? AND term=? ORDER BY student_id,component,col_order", (sec_id, term)))
+    return jsonify(Q("SELECT * FROM grade_scores WHERE section_id=? AND term=? ORDER BY student_id,component,col_order", (sec_id,term)))
 
 @app.route('/api/grades/scores/bulk', methods=['POST'])
 @admin_required
@@ -675,8 +646,7 @@ def save_grade_scores_bulk():
     d = request.json or {}
     rows = d.get('rows',[])
     if not rows: return jsonify({'error':'rows required'}), 400
-    XM("""INSERT INTO grade_scores (section_id,student_id,term,component,col_order,score) VALUES (?,?,?,?,?,?)
-          ON CONFLICT(section_id,student_id,term,component,col_order) DO UPDATE SET score=excluded.score""",
+    XM("INSERT INTO grade_scores (section_id,student_id,term,component,col_order,score) VALUES (?,?,?,?,?,?) ON CONFLICT(section_id,student_id,term,component,col_order) DO UPDATE SET score=excluded.score",
        [(r['section_id'],r['student_id'],r['term'],r['component'],r.get('col_order',0),r.get('score',0)) for r in rows])
     return jsonify({'ok': True, 'count': len(rows)})
 
@@ -688,11 +658,11 @@ def get_my_scores():
     if not u or not u['student_id']: return jsonify({'error':'No student record'}), 400
     st = Q("SELECT * FROM students WHERE id=?", (u['student_id'],), one=True)
     configs = Q("SELECT * FROM grade_configs WHERE section_id=? ORDER BY component,col_order", (st['section_id'],))
-    scores  = Q("SELECT * FROM grade_scores WHERE section_id=? AND student_id=?", (st['section_id'], st['id']))
+    scores  = Q("SELECT * FROM grade_scores WHERE section_id=? AND student_id=?", (st['section_id'],st['id']))
     att = {}
     for term in ('mt','ft'):
-        total = Q("SELECT COUNT(*) AS c FROM sessions WHERE section_id=? AND term=? AND is_open=0", (st['section_id'], term), one=True)['c']
-        pres  = Q("SELECT COUNT(*) AS c FROM attendance a JOIN sessions ss ON a.session_id=ss.id WHERE a.student_id=? AND ss.section_id=? AND ss.term=? AND a.status IN ('present','late','excuse')", (st['id'], st['section_id'], term), one=True)['c']
+        total = Q("SELECT COUNT(*) AS c FROM sessions WHERE section_id=? AND term=? AND is_open=0", (st['section_id'],term), one=True)['c']
+        pres  = Q("SELECT COUNT(*) AS c FROM attendance a JOIN sessions ss ON a.session_id=ss.id WHERE a.student_id=? AND ss.section_id=? AND ss.term=? AND a.status IN ('present','late','excuse')", (st['id'],st['section_id'],term), one=True)['c']
         att[term] = {'present': pres, 'total': total}
     return jsonify({'student': st, 'configs': configs, 'scores': scores, 'att': att})
 
@@ -700,13 +670,12 @@ def get_my_scores():
 @app.route('/api/reports/absence-leaders/<int:sem_id>', methods=['GET'])
 @auth_required
 def absence_leaders(sem_id):
-    rows = Q("""SELECT s.full_name, s.student_no, sec.name AS section_name, sec.subject_code,
-                COUNT(CASE WHEN a.status='absent' THEN 1 END) AS absences
-                FROM students s JOIN sections sec ON s.section_id=sec.id
-                LEFT JOIN attendance a ON s.id=a.student_id
-                WHERE sec.sem_id=? AND sec.user_id=?
-                GROUP BY s.id HAVING absences>0 ORDER BY absences DESC LIMIT 20""", (sem_id, g.user_id))
-    return jsonify(rows)
+    return jsonify(Q("""SELECT s.full_name,s.student_no,sec.name AS section_name,sec.subject_code,
+        COUNT(CASE WHEN a.status='absent' THEN 1 END) AS absences
+        FROM students s JOIN sections sec ON s.section_id=sec.id
+        LEFT JOIN attendance a ON s.id=a.student_id
+        WHERE sec.sem_id=? AND sec.user_id=?
+        GROUP BY s.id HAVING absences>0 ORDER BY absences DESC LIMIT 20""", (sem_id,g.user_id)))
 
 # ── ADMIN USERS ───────────────────────────────────────────────────────────
 @app.route('/api/admin/users', methods=['GET'])
@@ -718,19 +687,16 @@ def list_admin_users():
 @admin_required
 def create_admin_user():
     d = request.json or {}
-    if Q("SELECT id FROM users WHERE username=?", (d.get('username',''),), one=True):
-        return jsonify({'error':'Username taken'}), 400
+    if Q("SELECT id FROM users WHERE username=?", (d.get('username',''),), one=True): return jsonify({'error':'Username taken'}), 400
     pw = bcrypt.hashpw(d.get('password','').encode(), bcrypt.gensalt()).decode()
-    uid = X("INSERT INTO users (role,username,password,name,email) VALUES ('admin',?,?,?,?)",
-            (d['username'], pw, d.get('name',''), d.get('email','')))
+    uid = X("INSERT INTO users (role,username,password,name,email) VALUES ('admin',?,?,?,?)", (d['username'],pw,d.get('name',''),d.get('email','')))
     return jsonify({'id': uid})
 
 @app.route('/api/admin/users/<int:uid>', methods=['DELETE'])
 @admin_required
 def delete_admin_user(uid):
     if uid == g.user_id: return jsonify({'error':'Cannot delete yourself'}), 400
-    X("DELETE FROM users WHERE id=? AND role='admin'", (uid,))
-    return jsonify({'ok': True})
+    X("DELETE FROM users WHERE id=? AND role='admin'", (uid,)); return jsonify({'ok': True})
 
 # ── SPA ───────────────────────────────────────────────────────────────────
 @app.route('/', defaults={'path':''})
@@ -740,26 +706,6 @@ def spa(path):
         return send_from_directory(app.static_folder, path)
     return send_file(os.path.join(BASE_DIR, 'templates', 'index.html'))
 
-# ── STARTUP ───────────────────────────────────────────────────────────────
-_db_initialized = False
-
-@app.before_request
-def ensure_db():
-    global _db_initialized
-    if not _db_initialized:
-        init_db()
-        _verify_admin()
-        _db_initialized = True
-
-# Also try to init immediately (works for direct python run)
-try:
-    init_db()
-    _verify_admin()
-    _db_initialized = True
-except Exception as e:
-    print(f"[STARTUP] Deferred init: {e}")
-
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    print(f"DB_PATH = {DB_PATH}")
     app.run(debug=False, host='0.0.0.0', port=port)
