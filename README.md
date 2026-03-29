@@ -39,3 +39,4 @@ http://localhost:5000
 - Each admin has their own completely isolated data (AYs, sections, students)
 - Students are scoped to a specific section → semester
 - All pages filter by the currently active semester
+# edutrack-pro
