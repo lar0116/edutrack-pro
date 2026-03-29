@@ -259,6 +259,11 @@ def admin_required(f):
 # ── AUTH ──────────────────────────────────────────────────────────────────
 @app.route('/api/auth/login', methods=['POST'])
 def login():
+    global _db_initialized
+    if not _db_initialized:
+        init_db()
+        _verify_admin()
+        _db_initialized = True
     d = request.json or {}
     role = d.get('role', 'admin')
     if role == 'admin':
