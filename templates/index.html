@@ -513,21 +513,39 @@ function initGateNFC() {
   }
 }
 
+let _nfcGateScanning = false;
 async function startNFCScan() {
+  if (_nfcGateScanning) return; // prevent multiple scans
   const statusEl = document.getElementById('gate-nfc-status');
+  const btnWrap  = document.getElementById('gate-nfc-btn-wrap');
   try {
+    _nfcGateScanning = true;
     statusEl.textContent = '📡 Scanning… hold card near device.';
+    btnWrap.innerHTML = '<button class="btn-secondary btn-sm" style="width:100%;justify-content:center" onclick="stopNFCScan()">⏹ Stop Scan</button>';
     const reader = new NDEFReader();
+    window._nfcGateReader = reader;
     await reader.scan();
     reader.onreading = async (e) => {
+      if (!_nfcGateScanning) return; // already processed
+      _nfcGateScanning = false; // one-shot — stop after first read
       const uid = e.serialNumber.replace(/:/g,'').toUpperCase();
-      document.getElementById('gate-uid').value = uid;
       statusEl.textContent = '✅ Card detected: ' + uid;
+      document.getElementById('gate-uid').value = uid;
+      btnWrap.innerHTML = '';
       await submitGate();
     };
   } catch(e) {
+    _nfcGateScanning = false;
     statusEl.textContent = '⚠️ NFC error: ' + e.message;
+    btnWrap.innerHTML = '<button class="btn-primary btn-sm" style="width:100%;justify-content:center" onclick="startNFCScan()">📱 Start NFC Scan</button>';
   }
+}
+function stopNFCScan() {
+  _nfcGateScanning = false;
+  const btnWrap = document.getElementById('gate-nfc-btn-wrap');
+  if (btnWrap) btnWrap.innerHTML = '<button class="btn-primary btn-sm" style="width:100%;justify-content:center" onclick="startNFCScan()">📱 Start NFC Scan</button>';
+  const statusEl = document.getElementById('gate-nfc-status');
+  if (statusEl) statusEl.textContent = '';
 }
 
 function initGateKeyboard() {
@@ -1441,42 +1459,104 @@ async function deleteTag(id) {
   catch(e){toast(e.message,'error');}
 }
 
-function showRegisterRFID() {
+async function showRegisterRFID() {
+  const students = await api('GET', `/api/students?sem_id=${_activeSem?.id}`).catch(()=>[]);
+  const noCard = students.filter(s => !s.uid);
+  const nfcBtn = ('NDEFReader' in window) ? `<button class="btn-success btn-sm" id="rr-nfc-btn" onclick="startAdminNFC()" style="white-space:nowrap;flex-shrink:0">📱 NFC</button>` : '';
+
   showModal(`
     <div class="modal-header"><div class="modal-title">📡 Register RFID Card</div><button class="modal-close" onclick="closeModal()">✕</button></div>
-    <div class="form-group"><label>Student Number</label><input id="rr-sno" placeholder="2023300001" oninput="searchStudentForRFID(this.value)"></div>
-    <div id="rr-student" style="background:var(--surface2);border-radius:8px;padding:10px;margin-bottom:10px;font-size:12px;color:var(--text3)">Type student number above</div>
-    <div class="form-group"><label>Card UID</label><input id="rr-uid" placeholder="Scan RFID or enter manually (e.g. A1B2C3D4)"></div>
-    <div style="font-size:11px;color:var(--text2);margin-bottom:8px">💡 USB RFID reader will auto-fill the UID field when a card is scanned</div>
+    <div class="form-group">
+      <label>Select Student *</label>
+      <select id="rr-stud" style="font-size:13px" onchange="onAdminStudentSelect(this)">
+        <option value="">— Choose student —</option>
+        ${noCard.map(s=>`<option value="${s.id}">${s.full_name} · ${s.student_no} · ${s.section_name||'—'}</option>`).join('')}
+      </select>
+    </div>
+    <div id="rr-student" style="background:var(--surface2);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:12px;display:none"></div>
+    <div class="form-group">
+      <label>Card UID</label>
+      <div style="display:flex;gap:8px">
+        <input id="rr-uid" placeholder="Tap NFC / USB reader / type manually" style="flex:1">
+        ${nfcBtn}
+      </div>
+    </div>
+    <div id="rr-nfc-status" style="font-size:11px;color:var(--accent);min-height:16px;margin-bottom:6px"></div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:8px">💡 USB reader: focus outside input field then scan card</div>
     <div class="modal-footer">
       <button class="btn-secondary" onclick="closeModal()">Cancel</button>
       <button class="btn-primary" onclick="submitAdminRFID()">💾 Register</button>
     </div>`, 'modal-md');
-  // keyboard listener for USB reader
+
+  // USB RFID keyboard emulation listener
   let buf='', timer;
   document.addEventListener('keydown', function kl(e){
-    if(!document.getElementById('modal-overlay').classList.contains('hidden')){
-      const t=e.target; if(t.tagName==='INPUT'||t.tagName==='TEXTAREA') return;
-      if(e.key==='Enter'){if(buf.length>=4){document.getElementById('rr-uid').value=buf;}buf='';return;}
-      if(e.key.length===1){buf+=e.key;clearTimeout(timer);timer=setTimeout(()=>buf='',150);}
-    } else document.removeEventListener('keydown',kl);
+    if(document.getElementById('modal-overlay').classList.contains('hidden')){
+      document.removeEventListener('keydown',kl); return;
+    }
+    const t=e.target;
+    if(t.tagName==='INPUT'||t.tagName==='TEXTAREA') return;
+    if(e.key==='Enter'){
+      if(buf.length>=4){
+        document.getElementById('rr-uid').value = buf;
+        document.getElementById('rr-nfc-status').textContent = '✅ USB card detected: ' + buf;
+      }
+      buf=''; return;
+    }
+    if(e.key.length===1){buf+=e.key; clearTimeout(timer); timer=setTimeout(()=>buf='',150);}
   });
 }
-async function searchStudentForRFID(sno) {
-  const el=document.getElementById('rr-student'); if(!el)return;
-  if(sno.length<4){el.textContent='Type student number above';el.style.color='var(--text3)';return;}
-  const rows=await api('GET',`/api/students?q=${sno}&sem_id=${_activeSem?.id}`).catch(()=>[]);
-  const st=rows.find(r=>r.student_no===sno)||rows[0];
-  if(st){el.innerHTML=`<strong>${st.full_name}</strong> · ${st.section_name||'—'} ${st.uid?'<span class="badge badge-yellow">⚠️ Already has card</span>':'<span class="badge badge-green">✅ Ready to register</span>'}`;el.dataset.stid=st.id;}
-  else{el.textContent='Student not found';el.style.color='var(--red)';}
+
+function onAdminStudentSelect(sel) {
+  const el = document.getElementById('rr-student');
+  if (!sel.value) { el.style.display='none'; return; }
+  const txt = sel.options[sel.selectedIndex].text;
+  el.style.display = 'block';
+  el.textContent = '✅ ' + txt;
 }
+
+let _adminNFCScanning = false;
+async function startAdminNFC() {
+  const btn = document.getElementById('rr-nfc-btn');
+  const status = document.getElementById('rr-nfc-status');
+  if (_adminNFCScanning) {
+    _adminNFCScanning = false;
+    if (btn) btn.textContent = '📱 NFC';
+    if (status) status.textContent = '';
+    return;
+  }
+  try {
+    _adminNFCScanning = true;
+    if (btn) btn.textContent = '⏹ Stop';
+    if (status) status.textContent = '📡 Hold card near phone…';
+    const reader = new NDEFReader();
+    await reader.scan();
+    reader.onreading = (e) => {
+      if (!_adminNFCScanning) return;
+      _adminNFCScanning = false;
+      if (btn) btn.textContent = '📱 NFC';
+      const uid = e.serialNumber.replace(/:/g,'').toUpperCase();
+      document.getElementById('rr-uid').value = uid;
+      if (status) status.textContent = '✅ Card detected: ' + uid;
+    };
+  } catch(e) {
+    _adminNFCScanning = false;
+    if (btn) btn.textContent = '📱 NFC';
+    if (status) status.textContent = '⚠️ NFC error: ' + e.message;
+  }
+}
+
 async function submitAdminRFID() {
-  const uid=(document.getElementById('rr-uid').value||'').trim().toUpperCase();
-  const stid=document.getElementById('rr-student').dataset.stid;
-  if(!uid||uid.length<4){toast('Enter valid card UID','error');return;}
-  if(!stid){toast('Select a valid student','error');return;}
-  try{await api('POST','/api/rfid',{uid,student_id:parseInt(stid)});closeModal();toast('Card registered!','success');navigate('rfid');}
-  catch(e){toast(e.message,'error');}
+  const uid   = (document.getElementById('rr-uid').value||'').trim().toUpperCase();
+  const stid  = document.getElementById('rr-stud').value;
+  if (!stid) { toast('Select a student first','error'); return; }
+  if (!uid || uid.length < 4) { toast('Scan or enter card UID first','error'); return; }
+  try {
+    await api('POST','/api/rfid',{uid, student_id:parseInt(stid)});
+    closeModal();
+    toast('✅ Card registered!','success');
+    navigate('rfid');
+  } catch(e) { toast(e.message,'error'); }
 }
 
 /* ══════════════════════════════════════════════════
@@ -1564,16 +1644,16 @@ async function loadAttPage(secId) {
         <tbody>${sessions.length===0?`<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--text3)">No sessions yet.</td></tr>`:
           sessions.map(s=>{
             const cnt=s.counts||{};
-            return `<tr>
+            return `<tr data-sess-id="${s.id}">
               <td class="text-xs">${fmtDate(s.start_ts)}</td>
               <td class="text-xs">${s.sched_day||'—'}</td>
               <td>${s.slot_type==='lab'?'🔬':'📖'}</td>
               <td><span class="badge badge-${s.term==='mt'?'blue':'green'}">${s.term?.toUpperCase()}</span></td>
               <td class="text-xs">${s.time_start||'—'}</td>
-              <td style="color:var(--green)">${cnt.present||0}</td>
-              <td style="color:var(--yellow)">${cnt.late||0}</td>
-              <td style="color:var(--accent)">${cnt.excuse||0}</td>
-              <td style="color:var(--red)">${cnt.absent||0}</td>
+              <td style="color:var(--green)" data-count="present">${cnt.present||0}</td>
+              <td style="color:var(--yellow)" data-count="late">${cnt.late||0}</td>
+              <td style="color:var(--accent)" data-count="excuse">${cnt.excuse||0}</td>
+              <td style="color:var(--red)" data-count="absent">${cnt.absent||0}</td>
               <td>${s.is_open?'<span class="badge badge-green">● Open</span>':'<span class="badge badge-gray">Closed</span>'}</td>
               <td><div class="flex gap-2">
                 <button class="btn-secondary btn-sm btn-icon" onclick="viewSession(${s.id},'${sec.name}')" title="View/Edit">👁️</button>
@@ -1628,15 +1708,68 @@ async function processRFIDScan(uid, sessId) {
   } catch(e) { toast('❌ Card not found: '+uid,'error'); }
 }
 
+let _attNFCActive = false;
+let _attNFCLastUID = '';
+let _attNFCCooldown = false;
+
 async function startAttNFC(sessId) {
+  if (_attNFCActive) { stopAttNFC(); return; }
   try {
-    const reader = new NDEFReader(); await reader.scan();
-    toast('📡 NFC scanning…','info');
-    reader.onreading = async(e)=>{
-      const uid=e.serialNumber.replace(/:/g,'').toUpperCase();
+    _attNFCActive = true;
+    const btn = document.querySelector('[onclick*="startAttNFC"]');
+    if (btn) btn.textContent = '⏹ Stop NFC';
+
+    const reader = new NDEFReader();
+    window._attNFCReader = reader;
+    await reader.scan();
+    toast('📡 NFC active — tap card to record attendance','info');
+
+    reader.onreading = async(e) => {
+      if (!_attNFCActive) return;
+      const uid = e.serialNumber.replace(/:/g,'').toUpperCase();
+      // Cooldown: ignore same card within 3 seconds
+      if (_attNFCCooldown && uid === _attNFCLastUID) return;
+      _attNFCLastUID = uid;
+      _attNFCCooldown = true;
+      setTimeout(() => { _attNFCCooldown = false; }, 3000);
+
       await processRFIDScan(uid, sessId);
+      // Real-time refresh of session records
+      setTimeout(() => refreshSessionCounts(sessId), 500);
     };
-  } catch(e){toast('NFC error: '+e.message,'error');}
+  } catch(e) {
+    _attNFCActive = false;
+    toast('NFC error: '+e.message,'error');
+  }
+}
+
+function stopAttNFC() {
+  _attNFCActive = false;
+  _attNFCCooldown = false;
+  const btn = document.querySelector('[onclick*="startAttNFC"]');
+  if (btn) btn.textContent = '📱 NFC Scan';
+  toast('NFC scanning stopped','info');
+}
+
+async function refreshSessionCounts(sessId) {
+  try {
+    const sessions = await api('GET', `/api/sessions?section_id=${_attSectionId}`);
+    const sess = sessions.find(s => s.id === sessId);
+    if (!sess) return;
+    const cnt = sess.counts || {};
+    // Update the counts in the table row without full reload
+    const row = document.querySelector(`[data-sess-id="${sessId}"]`);
+    if (row) {
+      const cells = row.querySelectorAll('[data-count]');
+      cells.forEach(cell => {
+        const type = cell.dataset.count;
+        cell.textContent = cnt[type] || 0;
+      });
+    } else {
+      // Full reload if row not found
+      loadAttPage(_attSectionId);
+    }
+  } catch(e) {}
 }
 
 function startSessionModal(secId, slotId, day, type, ts, te, room) {
