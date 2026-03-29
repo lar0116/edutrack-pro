@@ -625,7 +625,7 @@ async function showApp() {
   const name = _currentUser.full_name || _currentUser.name || '';
   const firstName = (name.includes(',')?name.split(',').slice(1).join('').trim().split(' ')[0]:name.split(' ')[0]) || name;
   document.getElementById('user-display-name').textContent = name;
-  document.getElementById('user-display-role').textContent = _currentUser.role==='admin' ? '👨‍🏫 Admin' : '👨‍🎓 Student';
+  document.getElementById('user-display-role').textContent = _currentUser.role==='admin' ? '👨‍🏫 Administrator' : '👨‍🎓 Student';
   document.getElementById('user-avatar').textContent = (firstName[0]||'U').toUpperCase();
 
   // Build nav
@@ -1431,174 +1431,262 @@ async function doImport() {
 ══════════════════════════════════════════════════ */
 async function pgRFID(c) {
   if (sem_guard(c)) return;
-  document.getElementById('topbar-actions').innerHTML = `${ctxBadge()} <button class="btn-primary btn-sm" id="reg-card-btn" onclick="this.disabled=true;showRegisterRFID().finally(()=>{const b=document.getElementById('reg-card-btn');if(b)b.disabled=false;})">➕ Register Card</button>`;
+  document.getElementById('topbar-actions').innerHTML = `
+    ${ctxBadge()}
+    <button class="btn-primary btn-sm" onclick="openRegisterRFID()">➕ Register Card</button>`;
+
   const tags = await api('GET', `/api/rfid?sem_id=${_activeSem.id}`).catch(()=>[]);
+
   c.innerHTML = `
-    <div class="card mb-3" style="padding:12px 16px">
-      <div style="font-size:13px;font-weight:700;margin-bottom:4px">📡 About RFID / NFC</div>
-      <div style="font-size:12px;color:var(--text2)">Students self-register when they first log in. You can also register here manually. Web NFC works on Android Chrome only.</div>
+    <div class="card mb-3" style="padding:12px 16px;background:var(--accent-dim);border-color:rgba(59,130,246,.3)">
+      <div style="font-size:13px;font-weight:700;margin-bottom:4px">📡 RFID / NFC Tags</div>
+      <div style="font-size:12px;color:var(--text2)">
+        Register student RFID cards via NFC tap or USB reader. Students can also self-register on first login.
+      </div>
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>#</th><th>Student No.</th><th>Full Name</th><th>Section</th><th>Card UID</th><th>Registered</th><th>Source</th><th>Actions</th></tr></thead>
-      <tbody>${tags.length===0?`<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text3)">No RFID cards registered for this semester.</td></tr>`
-      :tags.map((t,i)=>`<tr>
-        <td>${i+1}</td><td class="text-mono text-xs">${t.student_no}</td>
-        <td style="font-weight:600">${t.full_name}</td>
-        <td><span class="badge badge-blue">${t.section_name}</span></td>
-        <td class="text-mono" style="color:var(--accent)">${t.uid}</td>
-        <td class="text-xs text-muted">${fmtDate(t.registered_at)}</td>
-        <td>${t.self_registered?'<span class="badge badge-green">Self</span>':'<span class="badge badge-gray">Admin</span>'}</td>
-        <td><button class="btn-danger btn-sm btn-icon" onclick="deleteTag(${t.id})">🗑️</button></td>
-      </tr>`).join('')}</tbody>
+      <thead><tr>
+        <th>#</th><th>Full Name</th><th>Student No.</th>
+        <th>Section</th><th>Card UID</th><th>Registered</th><th>By</th><th>Action</th>
+      </tr></thead>
+      <tbody>${tags.length === 0
+        ? `<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text3)">No cards registered yet for this semester.</td></tr>`
+        : tags.map((t,i) => `<tr>
+            <td class="text-xs">${i+1}</td>
+            <td style="font-weight:600">${t.full_name}</td>
+            <td class="text-mono text-xs">${t.student_no}</td>
+            <td><span class="badge badge-blue">${t.section_name||'—'}</span></td>
+            <td class="text-mono" style="color:var(--accent);font-size:12px">${t.uid}</td>
+            <td class="text-xs text-muted">${fmtDate(t.registered_at)}</td>
+            <td>${t.self_registered
+              ? '<span class="badge badge-green">Self</span>'
+              : '<span class="badge badge-gray">Admin</span>'}</td>
+            <td><button class="btn-danger btn-sm btn-icon" onclick="deleteTag(${t.id})" title="Remove">🗑️</button></td>
+          </tr>`).join('')
+      }</tbody>
     </table></div>`;
 }
 
 async function deleteTag(id) {
-  if(!confirm('Remove this RFID card?'))return;
-  try{await api('DELETE',`/api/rfid/${id}`);toast('Removed','info');navigate('rfid');}
-  catch(e){toast(e.message,'error');}
+  if (!confirm('Remove this RFID card? The student will need to re-register.')) return;
+  try {
+    await api('DELETE', `/api/rfid/${id}`);
+    toast('Card removed', 'info');
+    navigate('rfid');
+  } catch(e) { toast(e.message, 'error'); }
 }
 
-async function showRegisterRFID() {
-  // Show modal immediately with loading state
+/* ── ADMIN RFID REGISTRATION ─────────────────────────── */
+let _rrStudentId  = null;   // selected student id
+let _rrScannedUID = null;   // scanned UID
+let _rrNFCReader  = null;   // active NDEFReader
+let _rrNFCOn      = false;  // NFC scanning active
+let _rrUSBBuf     = '';     // USB reader buffer
+let _rrUSBTimer   = null;
+let _rrKBListener = null;
+
+async function openRegisterRFID() {
+  _rrStudentId  = null;
+  _rrScannedUID = null;
+  _rrNFCOn      = false;
+
   showModal(`
     <div class="modal-header">
-      <div class="modal-title">📡 Register RFID Card</div>
-      <button class="modal-close" onclick="closeModal()">✕</button>
+      <div class="modal-title">📡 Register Student RFID Card</div>
+      <button class="modal-close" onclick="closeRegisterRFID()">✕</button>
     </div>
-    <div id="rr-loading" style="text-align:center;padding:24px;color:var(--text3)">⏳ Loading students…</div>
-    <div id="rr-body" style="display:none">
-      <div class="form-group">
-        <label>Select Student *</label>
-        <select id="rr-stud" style="font-size:13px;width:100%" onchange="onAdminStudentSelect(this)">
-          <option value="">— Choose student —</option>
-        </select>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px">Only students without a registered card are shown</div>
+
+    <!-- STEP 1: Select Student -->
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Step 1 — Select Student</div>
+      <select id="rr-student-sel" style="width:100%;font-size:13px;padding:10px 12px" onchange="rrSelectStudent(this)">
+        <option value="">⏳ Loading students…</option>
+      </select>
+      <div id="rr-student-info" style="display:none;margin-top:8px;padding:8px 12px;background:var(--surface2);border-radius:8px;font-size:12px"></div>
+    </div>
+
+    <!-- STEP 2: Scan Card -->
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Step 2 — Scan RFID Card</div>
+
+      <!-- Scan area -->
+      <div id="rr-scan-area" style="border:2px dashed var(--border2);border-radius:12px;padding:24px;text-align:center;background:var(--surface2);cursor:pointer" onclick="rrStartScan()">
+        <div style="font-size:40px;margin-bottom:8px">📡</div>
+        <div id="rr-scan-label" style="font-size:14px;font-weight:700;color:var(--text2)">Tap to start scanning</div>
+        <div id="rr-scan-sub" style="font-size:11px;color:var(--text3);margin-top:4px">NFC tap or USB RFID reader</div>
       </div>
-      <div id="rr-student-info" style="background:var(--surface2);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;display:none;color:var(--green)"></div>
-      <div class="form-group">
-        <label>Card UID</label>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input id="rr-uid" placeholder="Tap NFC / USB reader / or type manually" style="flex:1">
-          <button id="rr-nfc-btn" class="btn-success btn-sm" onclick="startAdminNFC()" style="white-space:nowrap;display:none">📱 NFC</button>
-        </div>
-      </div>
-      <div id="rr-nfc-status" style="font-size:12px;color:var(--accent);min-height:18px;margin-bottom:8px"></div>
-      <div style="font-size:11px;color:var(--text2);padding:8px;background:var(--surface2);border-radius:6px;margin-bottom:4px">
-        💡 <strong>NFC:</strong> Click 📱 NFC button then tap card<br>
-        💡 <strong>USB Reader:</strong> Click outside input then scan
+
+      <!-- Scanned UID display (read-only) -->
+      <div id="rr-uid-display" style="display:none;margin-top:10px;padding:12px 16px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.3);border-radius:8px;text-align:center">
+        <div style="font-size:11px;color:var(--green);margin-bottom:4px">✅ Card Detected</div>
+        <div id="rr-uid-val" style="font-family:var(--mono);font-size:18px;font-weight:800;color:var(--green);letter-spacing:.08em"></div>
+        <button class="btn-secondary btn-sm" style="margin-top:8px" onclick="rrClearScan()">🔄 Scan Again</button>
       </div>
     </div>
+
     <div class="modal-footer">
-      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-      <button class="btn-primary" onclick="submitAdminRFID()">💾 Register</button>
+      <button class="btn-secondary" onclick="closeRegisterRFID()">Cancel</button>
+      <button id="rr-save-btn" class="btn-primary" onclick="rrSave()" disabled style="opacity:.5;cursor:not-allowed">
+        💾 Register Card
+      </button>
     </div>`, 'modal-md');
 
-  // Load students async
+  // Load students without cards
   try {
     const students = await api('GET', `/api/students?sem_id=${_activeSem?.id}`);
     const noCard = students.filter(s => !s.uid);
-
-    const sel = document.getElementById('rr-stud');
-    if (sel) {
-      sel.innerHTML = `<option value="">— Choose student (${noCard.length} without card) —</option>` +
+    const sel = document.getElementById('rr-student-sel');
+    if (!sel) return;
+    if (noCard.length === 0) {
+      sel.innerHTML = '<option value="">All students already have cards registered</option>';
+    } else {
+      sel.innerHTML =
+        `<option value="">— Select student (${noCard.length} unregistered) —</option>` +
         noCard.map(s =>
           `<option value="${s.id}" data-name="${s.full_name}" data-no="${s.student_no}" data-sec="${s.section_name||'—'}">
             ${s.full_name} · ${s.student_no}
           </option>`
         ).join('');
     }
-
-    // Show NFC button only on Android Chrome
-    if ('NDEFReader' in window) {
-      const nfcBtn = document.getElementById('rr-nfc-btn');
-      if (nfcBtn) nfcBtn.style.display = 'inline-flex';
-    }
-
-    // Hide loading, show body
-    const loading = document.getElementById('rr-loading');
-    const body = document.getElementById('rr-body');
-    if (loading) loading.style.display = 'none';
-    if (body) body.style.display = 'block';
-
   } catch(e) {
-    const loading = document.getElementById('rr-loading');
-    if (loading) loading.textContent = '❌ Error loading students: ' + e.message;
+    const sel = document.getElementById('rr-student-sel');
+    if (sel) sel.innerHTML = `<option value="">❌ Error: ${e.message}</option>`;
   }
 
-  // USB RFID keyboard emulation
-  let buf = '', timer;
-  document.addEventListener('keydown', function kl(e) {
-    if (document.getElementById('modal-overlay').classList.contains('hidden')) {
-      document.removeEventListener('keydown', kl); return;
-    }
+  // USB RFID keyboard listener
+  _rrKBListener = (e) => {
+    // Only active when modal is open and scan area is active
+    if (!_rrNFCOn) return;
+    if (document.getElementById('modal-overlay').classList.contains('hidden')) return;
     const t = e.target;
-    if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') return;
+    if (t.tagName === 'SELECT' || t.tagName === 'BUTTON') return;
     if (e.key === 'Enter') {
-      if (buf.length >= 4) {
-        const uidInput = document.getElementById('rr-uid');
-        if (uidInput) uidInput.value = buf;
-        const st = document.getElementById('rr-nfc-status');
-        if (st) st.textContent = '✅ USB card detected: ' + buf;
-      }
-      buf = ''; return;
+      if (_rrUSBBuf.length >= 4) rrReceiveUID(_rrUSBBuf.toUpperCase());
+      _rrUSBBuf = '';
+    } else if (e.key.length === 1) {
+      _rrUSBBuf += e.key;
+      clearTimeout(_rrUSBTimer);
+      _rrUSBTimer = setTimeout(() => { _rrUSBBuf = ''; }, 200);
     }
-    if (e.key.length === 1) { buf += e.key; clearTimeout(timer); timer = setTimeout(() => buf = '', 150); }
-  });
+  };
+  document.addEventListener('keydown', _rrKBListener);
 }
 
-function onAdminStudentSelect(sel) {
+function rrSelectStudent(sel) {
+  _rrStudentId = sel.value ? parseInt(sel.value) : null;
   const info = document.getElementById('rr-student-info');
-  if (!sel.value || !info) return;
+  if (!info) return;
+  if (!sel.value) { info.style.display = 'none'; return; }
   const opt = sel.options[sel.selectedIndex];
   info.style.display = 'block';
-  info.innerHTML = `✅ <strong>${opt.dataset.name}</strong> &nbsp;·&nbsp; ${opt.dataset.no} &nbsp;·&nbsp; ${opt.dataset.sec}`;
+  info.innerHTML = `👤 <strong>${opt.dataset.name}</strong> &nbsp;·&nbsp; <span class="text-mono">${opt.dataset.no}</span> &nbsp;·&nbsp; ${opt.dataset.sec}`;
+  rrCheckReady();
 }
 
-let _adminNFCScanning = false;
-async function startAdminNFC() {
-  const btn    = document.getElementById('rr-nfc-btn');
-  const status = document.getElementById('rr-nfc-status');
-  if (_adminNFCScanning) {
-    _adminNFCScanning = false;
-    if (btn) btn.innerHTML = '📱 NFC';
-    if (status) status.textContent = '';
-    return;
-  }
-  try {
-    _adminNFCScanning = true;
-    if (btn) btn.innerHTML = '⏹ Stop';
-    if (status) status.textContent = '📡 Hold card near phone…';
-    const reader = new NDEFReader();
-    await reader.scan();
-    reader.onreading = (e) => {
-      if (!_adminNFCScanning) return;
-      _adminNFCScanning = false;
-      if (btn) btn.innerHTML = '📱 NFC';
-      const uid = e.serialNumber.replace(/:/g, '').toUpperCase();
-      const uidInput = document.getElementById('rr-uid');
-      if (uidInput) uidInput.value = uid;
-      if (status) status.textContent = '✅ Card detected: ' + uid;
-    };
-  } catch(e) {
-    _adminNFCScanning = false;
-    if (btn) btn.innerHTML = '📱 NFC';
-    if (status) status.textContent = '⚠️ ' + e.message;
+async function rrStartScan() {
+  if (_rrNFCOn) return; // already scanning
+  _rrNFCOn = true;
+  _rrUSBBuf = '';
+
+  const area  = document.getElementById('rr-scan-area');
+  const label = document.getElementById('rr-scan-label');
+  const sub   = document.getElementById('rr-scan-sub');
+
+  if (area)  { area.style.borderColor = 'var(--accent)'; area.style.background = 'var(--accent-dim)'; }
+  if (label) label.textContent = '📡 Waiting for tap…';
+  if (sub)   sub.textContent = 'Hold RFID/NFC card near device or scan with USB reader';
+
+  // Try Web NFC
+  if ('NDEFReader' in window) {
+    try {
+      _rrNFCReader = new NDEFReader();
+      await _rrNFCReader.scan();
+      _rrNFCReader.onreading = (e) => {
+        const uid = e.serialNumber.replace(/:/g, '').toUpperCase();
+        rrReceiveUID(uid);
+      };
+      if (sub) sub.textContent = '📱 NFC active — tap card now';
+    } catch(e) {
+      if (sub) sub.textContent = 'NFC error: ' + e.message + ' — use USB reader';
+    }
+  } else {
+    if (sub) sub.textContent = 'NFC not available — use USB RFID reader';
   }
 }
 
-async function submitAdminRFID() {
-  const uid  = (document.getElementById('rr-uid')?.value || '').trim().toUpperCase();
-  const stid = document.getElementById('rr-stud')?.value;
-  if (!stid) { toast('Select a student first', 'error'); return; }
-  if (!uid || uid.length < 4) { toast('Scan or enter card UID first', 'error'); return; }
+function rrReceiveUID(uid) {
+  if (!uid || uid.length < 4) return;
+  _rrNFCOn = false;
+  _rrScannedUID = uid;
+
+  // Hide scan area, show UID
+  const area = document.getElementById('rr-scan-area');
+  const disp = document.getElementById('rr-uid-display');
+  const val  = document.getElementById('rr-uid-val');
+  if (area) area.style.display = 'none';
+  if (disp) disp.style.display = 'block';
+  if (val)  val.textContent = uid;
+
+  // Stop NFC
+  _rrNFCReader = null;
+  rrCheckReady();
+}
+
+function rrClearScan() {
+  _rrScannedUID = null;
+  _rrNFCOn = false;
+  _rrUSBBuf = '';
+
+  const area  = document.getElementById('rr-scan-area');
+  const disp  = document.getElementById('rr-uid-display');
+  const label = document.getElementById('rr-scan-label');
+  const sub   = document.getElementById('rr-scan-sub');
+  if (area)  { area.style.display = 'block'; area.style.borderColor = 'var(--border2)'; area.style.background = 'var(--surface2)'; }
+  if (disp)  disp.style.display = 'none';
+  if (label) label.textContent = 'Tap to start scanning';
+  if (sub)   sub.textContent = 'NFC tap or USB RFID reader';
+
+  rrCheckReady();
+}
+
+function rrCheckReady() {
+  const btn = document.getElementById('rr-save-btn');
+  if (!btn) return;
+  const ready = _rrStudentId && _rrScannedUID;
+  btn.disabled = !ready;
+  btn.style.opacity = ready ? '1' : '.5';
+  btn.style.cursor  = ready ? 'pointer' : 'not-allowed';
+}
+
+async function rrSave() {
+  if (!_rrStudentId) { toast('Select a student first', 'error'); return; }
+  if (!_rrScannedUID) { toast('Scan the RFID card first', 'error'); return; }
+
+  const btn = document.getElementById('rr-save-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving…'; }
+
   try {
-    await api('POST', '/api/rfid', {uid, student_id: parseInt(stid)});
-    _adminNFCScanning = false;
-    closeModal();
-    toast('✅ Card registered!', 'success');
+    await api('POST', '/api/rfid', { uid: _rrScannedUID, student_id: _rrStudentId });
+    closeRegisterRFID();
+    toast('✅ RFID card registered successfully!', 'success');
     navigate('rfid');
-  } catch(e) { toast(e.message, 'error'); }
+  } catch(e) {
+    toast('❌ ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Register Card'; }
+  }
+}
+
+function closeRegisterRFID() {
+  _rrNFCOn = false;
+  _rrNFCReader = null;
+  _rrStudentId = null;
+  _rrScannedUID = null;
+  _rrUSBBuf = '';
+  if (_rrKBListener) {
+    document.removeEventListener('keydown', _rrKBListener);
+    _rrKBListener = null;
+  }
+  closeModal();
 }
 
 /* ══════════════════════════════════════════════════
@@ -2325,7 +2413,7 @@ async function pgStudentDashboard(c) {
         </div>
         <div style="text-align:right">
           <div style="font-size:11px;color:var(--text2)">Professor</div>
-          <div style="font-size:13px;font-weight:600">${sec.professor||'—'}</div>
+          <div style="font-size:13px;font-weight:600">${sec.professor && sec.professor !== 'Administrator' ? sec.professor : sec.professor||'—'}</div>
         </div>
       </div>
     </div>
