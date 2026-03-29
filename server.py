@@ -11,8 +11,15 @@ from flask_cors import CORS
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 _default   = os.path.join(BASE_DIR, 'database', 'edutrack.db')
 DB_PATH    = os.environ.get('DB_PATH', _default)
-print(f"[CONFIG] DB_PATH = {DB_PATH}")
-print(f"[CONFIG] BASE_DIR = {BASE_DIR}")
+
+# Ensure DB directory exists at startup
+try:
+    _db_dir = os.path.dirname(os.path.abspath(DB_PATH))
+    os.makedirs(_db_dir, exist_ok=True)
+    print(f"[CONFIG] DB_PATH = {DB_PATH} (dir OK)")
+except Exception as _e:
+    DB_PATH = '/tmp/edutrack.db'
+    print(f"[CONFIG] Fallback DB_PATH = {DB_PATH} (reason: {_e})")
 JWT_SECRET = os.environ.get('JWT_SECRET', 'edutrack-pro-secret-2025-xyz')
 JWT_EXPIRY = 72
 
@@ -58,16 +65,7 @@ def XM(sql, rows):
     db = get_db(); db.executemany(sql, rows); db.commit()
 
 def init_db():
-    global DB_PATH
-    db_dir = os.path.dirname(os.path.abspath(DB_PATH))
-    print(f"[INIT_DB] Creating dir: {db_dir}")
-    try:
-        os.makedirs(db_dir, exist_ok=True)
-        print(f"[INIT_DB] Dir OK: {db_dir}")
-    except Exception as e:
-        print(f"[INIT_DB] Dir error: {e} — falling back to /tmp")
-        DB_PATH = '/tmp/edutrack.db'
-        print(f"[INIT_DB] Using fallback: {DB_PATH}")
+    print(f"[INIT_DB] Using DB: {DB_PATH}")
     db = sqlite3.connect(DB_PATH)
     db.execute("PRAGMA foreign_keys=ON")
     db.executescript("""
