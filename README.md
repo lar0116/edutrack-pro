@@ -40,3 +40,4 @@ http://localhost:5000
 - Students are scoped to a specific section → semester
 - All pages filter by the currently active semester
 # edutrack-pro
+# edutrack-pro
