@@ -1,19 +1,16 @@
 """
-EduTrack Pro v2 — Flask + SQLite Backend
-Full multi-user, per-semester scoped academic system
+EduTrack Pro — Flask + SQLite Backend
 """
-import sqlite3, bcrypt, jwt, os
+import sqlite3, bcrypt, os
 from datetime import datetime, timedelta, timezone
 from functools import wraps
+import jwt
 from flask import Flask, request, jsonify, g, send_from_directory, send_file
 from flask_cors import CORS
 
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
-# Use /tmp for Render free plan, or custom path via env var
-_default_db = os.path.join(BASE_DIR, 'database', 'edutrack.db')
-DB_PATH = os.environ.get('DB_PATH', _default_db)
-# Auto-create parent directory
-os.makedirs(os.path.dirname(DB_PATH) if os.path.dirname(DB_PATH) else '.', exist_ok=True)
+_default   = os.path.join(BASE_DIR, 'database', 'edutrack.db')
+DB_PATH    = os.environ.get('DB_PATH', _default)
 JWT_SECRET = os.environ.get('JWT_SECRET', 'edutrack-pro-secret-2025-xyz')
 JWT_EXPIRY = 72
 
@@ -21,21 +18,19 @@ app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)
 
 @app.after_request
-def add_cors_headers(response):
+def add_cors(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
-    response.headers['Access-Control-Max-Age'] = '86400'
-    # Prevent browser from caching HTML page (avoids stale JS issues)
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,POST,PUT,DELETE,OPTIONS,PATCH'
     if request.path == '/' or not request.path.startswith('/api/'):
         response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-        response.headers['Pragma'] = 'no-cache'
     return response
 
 @app.route('/api/<path:path>', methods=['OPTIONS'])
 def handle_options(path):
     return '', 204
 
+# ── DB ────────────────────────────────────────────────────────────────────
 def get_db():
     if 'db' not in g:
         g.db = sqlite3.connect(DB_PATH, detect_types=sqlite3.PARSE_DECLTYPES)
@@ -61,7 +56,8 @@ def XM(sql, rows):
     db = get_db(); db.executemany(sql, rows); db.commit()
 
 def init_db():
-    os.makedirs(os.path.dirname(DB_PATH) or '.', exist_ok=True)
+    db_dir = os.path.dirname(os.path.abspath(DB_PATH))
+    os.makedirs(db_dir, exist_ok=True)
     db = sqlite3.connect(DB_PATH)
     db.execute("PRAGMA foreign_keys=ON")
     db.executescript("""
@@ -77,7 +73,7 @@ def init_db():
     );
     CREATE TABLE IF NOT EXISTS academic_years (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL DEFAULT 1,
         year TEXT NOT NULL,
         created_at TEXT DEFAULT (datetime('now')),
         UNIQUE(user_id, year)
@@ -85,7 +81,7 @@ def init_db():
     CREATE TABLE IF NOT EXISTS semesters (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         ay_id INTEGER NOT NULL REFERENCES academic_years(id) ON DELETE CASCADE,
-        user_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL DEFAULT 1,
         label TEXT NOT NULL,
         is_active INTEGER DEFAULT 0,
         created_at TEXT DEFAULT (datetime('now')),
@@ -94,7 +90,7 @@ def init_db():
     CREATE TABLE IF NOT EXISTS sections (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         sem_id INTEGER NOT NULL REFERENCES semesters(id) ON DELETE CASCADE,
-        user_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL DEFAULT 1,
         name TEXT NOT NULL,
         subject_code TEXT NOT NULL DEFAULT '',
         subject_full TEXT DEFAULT '',
@@ -175,11 +171,7 @@ def init_db():
         UNIQUE(section_id, student_id, term, component, col_order)
     );
     """)
-    row = db.execute("SELECT id FROM users WHERE role='admin' LIMIT 1").fetchone()
-    if not row:
-        pw = bcrypt.hashpw(b'admin123', bcrypt.gensalt()).decode()
-        db.execute("INSERT INTO users (role,username,password,name) VALUES ('admin','admin',?,'Administrator')", (pw,))
-    # Auto-migrate: add missing user_id columns for existing DBs
+    # Auto-migrate for older DBs
     for _m in [
         "ALTER TABLE academic_years ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1",
         "ALTER TABLE semesters ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1",
@@ -187,80 +179,70 @@ def init_db():
     ]:
         try: db.execute(_m)
         except: pass
+    # Seed admin
+    row = db.execute("SELECT id FROM users WHERE role='admin' LIMIT 1").fetchone()
+    if not row:
+        pw = bcrypt.hashpw(b'admin123', bcrypt.gensalt()).decode()
+        db.execute("INSERT INTO users (role,username,password,name) VALUES ('admin','admin',?,?)", (pw,'Administrator'))
     db.commit(); db.close()
-    print("✅ DB ready:", DB_PATH)
-    # Verify admin credentials on every startup
-    _verify_admin_on_start()
+    print(f"✅ DB ready: {DB_PATH}")
 
-def _verify_admin_on_start():
-    """Ensure admin/admin123 always works. Resets if hash is broken."""
-    import sqlite3 as _sq
-    db2 = _sq.connect(DB_PATH)
-    db2.row_factory = _sq.Row
-    row = db2.execute("SELECT * FROM users WHERE username='admin' AND role='admin'").fetchone()
-    if row:
-        ok = False
-        try: ok = bcrypt.checkpw(b'admin123', row['password'].encode())
-        except: pass
-        if not ok:
-            new_pw = bcrypt.hashpw(b'admin123', bcrypt.gensalt()).decode()
-            db2.execute("UPDATE users SET password=? WHERE username='admin'", (new_pw,))
-            db2.commit()
-            print("⚠️  Admin password was invalid — reset to admin123")
-        else:
-            print("✅ Admin password verified OK")
-    db2.close()
+def _verify_admin():
+    try:
+        db = sqlite3.connect(DB_PATH)
+        db.row_factory = sqlite3.Row
+        u = db.execute("SELECT * FROM users WHERE username='admin' AND role='admin'").fetchone()
+        if u:
+            ok = bcrypt.checkpw(b'admin123', u['password'].encode())
+            if not ok:
+                pw = bcrypt.hashpw(b'admin123', bcrypt.gensalt()).decode()
+                db.execute("UPDATE users SET password=? WHERE username='admin'", (pw,))
+                db.commit()
+                print("⚠️  Admin password reset to admin123")
+            else:
+                print("✅ Admin password OK")
+        db.close()
+    except Exception as e:
+        print(f"⚠️  verify_admin error: {e}")
 
+# ── JWT ───────────────────────────────────────────────────────────────────
 def make_token(uid, role):
     exp = datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRY)
     return jwt.encode({'sub': str(uid), 'role': role, 'exp': exp}, JWT_SECRET, algorithm='HS256')
 
 def verify_token(token):
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
-        payload['sub'] = int(payload['sub'])  # convert back to int
-        return payload
+        p = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+        p['sub'] = int(p['sub'])
+        return p
     except Exception as e:
-        print(f"[VERIFY_TOKEN ERROR] {type(e).__name__}: {e}")
+        print(f"[JWT ERROR] {type(e).__name__}: {e}")
         return None
 
-def get_token_from_request():
+def get_token():
     auth = request.headers.get('Authorization', '')
     if auth.startswith('Bearer '):
         return auth[7:].strip()
-    # Also check cookie fallback
-    return request.cookies.get('et_token', '')
+    return ''
 
 def auth_required(f):
     @wraps(f)
     def w(*a, **kw):
-        tok = get_token_from_request()
-        if not tok:
-            print(f"[AUTH] No token for {request.method} {request.path}")
-            return jsonify({'error':'Unauthorized - no token'}), 401
+        tok = get_token()
         p = verify_token(tok)
-        if not p:
-            print(f"[AUTH] Invalid token for {request.method} {request.path} — tok[:20]={tok[:20]}")
-            return jsonify({'error':'Unauthorized - invalid token'}), 401
-        g.user_id = int(p['sub']); g.role = p['role']
+        if not p: return jsonify({'error':'Unauthorized'}), 401
+        g.user_id = p['sub']; g.role = p['role']
         return f(*a, **kw)
     return w
 
 def admin_required(f):
     @wraps(f)
     def w(*a, **kw):
-        tok = get_token_from_request()
-        if not tok:
-            print(f"[ADMIN] No token for {request.method} {request.path}")
-            return jsonify({'error':'Unauthorized - no token'}), 401
+        tok = get_token()
         p = verify_token(tok)
-        if not p:
-            print(f"[ADMIN] Invalid token for {request.method} {request.path} — tok[:20]={tok[:20]}")
-            return jsonify({'error':'Unauthorized - invalid token'}), 401
-        if p['role'] != 'admin':
-            print(f"[ADMIN] Role mismatch: got {p['role']} for {request.path}")
-            return jsonify({'error':'Admin only'}), 403
-        g.user_id = int(p['sub']); g.role = 'admin'
+        if not p: return jsonify({'error':'Unauthorized'}), 401
+        if p['role'] != 'admin': return jsonify({'error':'Admin only'}), 403
+        g.user_id = p['sub']; g.role = 'admin'
         return f(*a, **kw)
     return w
 
@@ -297,8 +279,6 @@ def get_me():
 @auth_required
 def update_profile():
     d = request.json or {}
-    if Q("SELECT id FROM users WHERE username=? AND id!=?", (d.get('username',''), g.user_id), one=True):
-        return jsonify({'error':'Username taken'}), 400
     X("UPDATE users SET name=?, username=? WHERE id=?", (d.get('name'), d.get('username'), g.user_id))
     return jsonify({'ok': True})
 
@@ -312,7 +292,7 @@ def change_password():
     X("UPDATE users SET password=? WHERE id=?", (bcrypt.hashpw(d.get('new','').encode(), bcrypt.gensalt()).decode(), g.user_id))
     return jsonify({'ok': True})
 
-# ── ACADEMIC YEARS (per admin user) ──────────────────────────────────────
+# ── ACADEMIC YEARS ────────────────────────────────────────────────────────
 @app.route('/api/academic-years', methods=['GET'])
 @auth_required
 def get_academic_years():
@@ -343,9 +323,7 @@ def create_academic_year():
 @app.route('/api/academic-years/<int:ay_id>', methods=['DELETE'])
 @admin_required
 def delete_academic_year(ay_id):
-    if not Q("SELECT id FROM academic_years WHERE id=? AND user_id=?", (ay_id, g.user_id), one=True):
-        return jsonify({'error':'Not found'}), 404
-    X("DELETE FROM academic_years WHERE id=?", (ay_id,))
+    X("DELETE FROM academic_years WHERE id=? AND user_id=?", (ay_id, g.user_id))
     return jsonify({'ok': True})
 
 # ── SEMESTERS ─────────────────────────────────────────────────────────────
@@ -355,10 +333,6 @@ def add_semester():
     d = request.json or {}
     ay_id = d.get('ay_id'); label = d.get('label','').strip()
     if not ay_id or not label: return jsonify({'error':'ay_id and label required'}), 400
-    if not Q("SELECT id FROM academic_years WHERE id=? AND user_id=?", (ay_id, g.user_id), one=True):
-        return jsonify({'error':'AY not found'}), 404
-    if Q("SELECT id FROM semesters WHERE ay_id=? AND label=?", (ay_id, label), one=True):
-        return jsonify({'error':'Label exists'}), 400
     sid = X("INSERT INTO semesters (ay_id, user_id, label) VALUES (?,?,?)", (ay_id, g.user_id, label))
     return jsonify({'id': sid, 'label': label, 'ay_id': ay_id, 'is_active': 0})
 
@@ -385,10 +359,10 @@ def get_active_semester():
     return jsonify(sem or {})
 
 # ── SECTIONS ──────────────────────────────────────────────────────────────
-def _sec_base_query():
+def _sec_query():
     return "SELECT sec.*, sem.label AS sem_label, a.year AS ay_year FROM sections sec JOIN semesters sem ON sec.sem_id=sem.id JOIN academic_years a ON sem.ay_id=a.id"
 
-def _attach_slots_count(secs):
+def _attach_slots(secs):
     for s in secs:
         s['slots'] = Q("SELECT * FROM schedule_slots WHERE section_id=? ORDER BY id", (s['id'],))
         s['student_count'] = Q("SELECT COUNT(*) AS c FROM students WHERE section_id=?", (s['id'],), one=True)['c']
@@ -403,15 +377,12 @@ def get_sections():
         if not u or not u['student_id']: return jsonify([])
         st = Q("SELECT section_id FROM students WHERE id=?", (u['student_id'],), one=True)
         if not st: return jsonify([])
-        secs = Q(_sec_base_query()+" WHERE sec.id=?", (st['section_id'],))
-        return jsonify(_attach_slots_count(secs))
+        return jsonify(_attach_slots(Q(_sec_query()+" WHERE sec.id=?", (st['section_id'],))))
     if sem_id:
-        ok = Q("SELECT s.id FROM semesters s JOIN academic_years a ON s.ay_id=a.id WHERE s.id=? AND a.user_id=?", (sem_id, g.user_id), one=True)
-        if not ok: return jsonify([])
-        secs = Q(_sec_base_query()+" WHERE sec.sem_id=?", (sem_id,))
+        secs = Q(_sec_query()+" WHERE sec.sem_id=?", (sem_id,))
     else:
-        secs = Q(_sec_base_query()+" WHERE sec.user_id=? ORDER BY a.year DESC, sem.id", (g.user_id,))
-    return jsonify(_attach_slots_count(secs))
+        secs = Q(_sec_query()+" WHERE sec.user_id=? ORDER BY a.year DESC", (g.user_id,))
+    return jsonify(_attach_slots(secs))
 
 @app.route('/api/sections', methods=['POST'])
 @admin_required
@@ -419,54 +390,47 @@ def create_section():
     d = request.json or {}
     sem_id = d.get('sem_id')
     if not sem_id or not d.get('name'): return jsonify({'error':'sem_id and name required'}), 400
-    ok = Q("SELECT s.id FROM semesters s JOIN academic_years a ON s.ay_id=a.id WHERE s.id=? AND a.user_id=?", (sem_id, g.user_id), one=True)
-    if not ok: return jsonify({'error':'Semester not found'}), 404
     sec_id = X("INSERT INTO sections (sem_id,user_id,name,subject_code,subject_full,program,year_level,subject_type,professor,late_threshold) VALUES (?,?,?,?,?,?,?,?,?,?)",
                (sem_id, g.user_id, d['name'], d.get('subject_code',''), d.get('subject_full',''), d.get('program','BSIT'), d.get('year_level',3), d.get('subject_type','lec-lab'), d.get('professor',''), d.get('late_threshold',15)))
     if d.get('slots'):
         XM("INSERT INTO schedule_slots (section_id,day,slot_type,time_start,time_end,room) VALUES (?,?,?,?,?,?)",
-           [(sec_id, s['day'], s.get('type','lecture'), s.get('timeStart',''), s.get('timeEnd',''), s.get('room','')) for s in d['slots']])
+           [(sec_id, s['day'], s.get('type', s.get('slot_type','lecture')), s.get('timeStart', s.get('time_start','')), s.get('timeEnd', s.get('time_end','')), s.get('room','')) for s in d['slots']])
     return jsonify({'id': sec_id})
 
 @app.route('/api/sections/<int:sec_id>', methods=['PUT'])
 @admin_required
 def update_section(sec_id):
     d = request.json or {}
-    if not Q("SELECT id FROM sections WHERE id=? AND user_id=?", (sec_id, g.user_id), one=True):
-        return jsonify({'error':'Not found'}), 404
-    X("UPDATE sections SET name=?,subject_code=?,subject_full=?,program=?,year_level=?,subject_type=?,professor=?,late_threshold=? WHERE id=?",
-      (d.get('name'), d.get('subject_code'), d.get('subject_full'), d.get('program'), d.get('year_level'), d.get('subject_type'), d.get('professor'), d.get('late_threshold'), sec_id))
+    X("UPDATE sections SET name=?,subject_code=?,subject_full=?,program=?,year_level=?,subject_type=?,professor=?,late_threshold=? WHERE id=? AND user_id=?",
+      (d.get('name'), d.get('subject_code'), d.get('subject_full'), d.get('program'), d.get('year_level'), d.get('subject_type'), d.get('professor'), d.get('late_threshold'), sec_id, g.user_id))
     X("DELETE FROM schedule_slots WHERE section_id=?", (sec_id,))
     if d.get('slots'):
         XM("INSERT INTO schedule_slots (section_id,day,slot_type,time_start,time_end,room) VALUES (?,?,?,?,?,?)",
-           [(sec_id, s['day'], s.get('type','lecture'), s.get('timeStart',''), s.get('timeEnd',''), s.get('room','')) for s in d['slots']])
+           [(sec_id, s['day'], s.get('type', s.get('slot_type','lecture')), s.get('timeStart', s.get('time_start','')), s.get('timeEnd', s.get('time_end','')), s.get('room','')) for s in d['slots']])
     return jsonify({'ok': True})
 
 @app.route('/api/sections/<int:sec_id>', methods=['DELETE'])
 @admin_required
 def delete_section(sec_id):
-    if not Q("SELECT id FROM sections WHERE id=? AND user_id=?", (sec_id, g.user_id), one=True):
-        return jsonify({'error':'Not found'}), 404
-    X("DELETE FROM sections WHERE id=?", (sec_id,))
+    X("DELETE FROM sections WHERE id=? AND user_id=?", (sec_id, g.user_id))
     return jsonify({'ok': True})
 
 # ── STUDENTS ──────────────────────────────────────────────────────────────
 @app.route('/api/students', methods=['GET'])
 @auth_required
 def get_students():
-    sec_id = request.args.get('section_id'); sem_id = request.args.get('sem_id'); q_str = request.args.get('q','')
+    sec_id = request.args.get('section_id')
+    sem_id = request.args.get('sem_id')
+    q_str  = request.args.get('q','')
+    base   = "SELECT s.*, r.uid, r.id AS tag_id, sec.name AS section_name FROM students s JOIN sections sec ON s.section_id=sec.id LEFT JOIN rfid_tags r ON s.id=r.student_id"
     if g.role == 'student':
         u = Q("SELECT student_id FROM users WHERE id=?", (g.user_id,), one=True)
         if not u or not u['student_id']: return jsonify([])
-        st = Q("SELECT s.*, r.uid, r.id AS tag_id, sec.name AS section_name FROM students s JOIN sections sec ON s.section_id=sec.id LEFT JOIN rfid_tags r ON s.id=r.student_id WHERE s.id=?", (u['student_id'],), one=True)
+        st = Q(base+" WHERE s.id=?", (u['student_id'],), one=True)
         return jsonify([st] if st else [])
-    base = "SELECT s.*, r.uid, r.id AS tag_id, sec.name AS section_name FROM students s JOIN sections sec ON s.section_id=sec.id LEFT JOIN rfid_tags r ON s.id=r.student_id"
     if sec_id:
-        if not Q("SELECT id FROM sections WHERE id=? AND user_id=?", (sec_id, g.user_id), one=True): return jsonify([])
         rows = Q(base+" WHERE s.section_id=? ORDER BY s.full_name", (sec_id,))
     elif sem_id:
-        ok = Q("SELECT s.id FROM semesters s JOIN academic_years a ON s.ay_id=a.id WHERE s.id=? AND a.user_id=?", (sem_id, g.user_id), one=True)
-        if not ok: return jsonify([])
         rows = Q(base+" WHERE sec.sem_id=? ORDER BY sec.name, s.full_name", (sem_id,))
     else:
         rows = Q(base+" WHERE sec.user_id=? ORDER BY sec.name, s.full_name", (g.user_id,))
@@ -481,8 +445,6 @@ def create_student():
     d = request.json or {}
     sno = d.get('student_no','').strip(); name = d.get('full_name','').strip(); sec_id = d.get('section_id')
     if not sno or not name or not sec_id: return jsonify({'error':'student_no, full_name, section_id required'}), 400
-    if not Q("SELECT id FROM sections WHERE id=? AND user_id=?", (sec_id, g.user_id), one=True):
-        return jsonify({'error':'Section not found or not yours'}), 404
     if Q("SELECT id FROM students WHERE student_no=?", (sno,), one=True):
         return jsonify({'error':'Duplicate student number'}), 400
     st_id = X("INSERT INTO students (section_id,student_no,full_name,gender,year_level) VALUES (?,?,?,?,?)",
@@ -497,8 +459,6 @@ def import_students():
     d = request.json or {}
     sec_id = d.get('section_id'); rows = d.get('rows',[])
     if not sec_id or not rows: return jsonify({'error':'section_id and rows required'}), 400
-    if not Q("SELECT id FROM sections WHERE id=? AND user_id=?", (sec_id, g.user_id), one=True):
-        return jsonify({'error':'Section not found'}), 404
     added = skipped = 0
     for r in rows:
         sno = str(r.get('student_no','')).strip(); name = str(r.get('full_name','')).strip()
@@ -515,18 +475,16 @@ def import_students():
 @admin_required
 def update_student(st_id):
     d = request.json or {}
-    st = Q("SELECT s.id, s.section_id FROM students s JOIN sections sec ON s.section_id=sec.id WHERE s.id=? AND sec.user_id=?", (st_id, g.user_id), one=True)
+    st = Q("SELECT s.id, s.section_id FROM students s JOIN sections sec ON s.section_id=sec.id WHERE s.id=?", (st_id,), one=True)
     if not st: return jsonify({'error':'Not found'}), 404
-    new_sec = d.get('section_id', st['section_id'])
-    if not Q("SELECT id FROM sections WHERE id=? AND user_id=?", (new_sec, g.user_id), one=True):
-        return jsonify({'error':'Target section not found'}), 404
-    X("UPDATE students SET full_name=?,gender=?,year_level=?,section_id=? WHERE id=?", (d.get('full_name'), d.get('gender'), d.get('year_level'), new_sec, st_id))
+    X("UPDATE students SET full_name=?,gender=?,year_level=?,section_id=? WHERE id=?",
+      (d.get('full_name'), d.get('gender'), d.get('year_level'), d.get('section_id', st['section_id']), st_id))
     return jsonify({'ok': True})
 
 @app.route('/api/students/<int:st_id>', methods=['DELETE'])
 @admin_required
 def delete_student(st_id):
-    st = Q("SELECT s.student_no FROM students s JOIN sections sec ON s.section_id=sec.id WHERE s.id=? AND sec.user_id=?", (st_id, g.user_id), one=True)
+    st = Q("SELECT student_no FROM students WHERE id=?", (st_id,), one=True)
     if not st: return jsonify({'error':'Not found'}), 404
     X("DELETE FROM students WHERE id=?", (st_id,))
     X("DELETE FROM users WHERE username=? AND role='student'", (st['student_no'],))
@@ -538,8 +496,6 @@ def delete_student(st_id):
 def get_rfid():
     sem_id = request.args.get('sem_id')
     if sem_id:
-        ok = Q("SELECT s.id FROM semesters s JOIN academic_years a ON s.ay_id=a.id WHERE s.id=? AND a.user_id=?", (sem_id, g.user_id), one=True)
-        if not ok: return jsonify([])
         rows = Q("SELECT r.*, s.full_name, s.student_no, sec.name AS section_name FROM rfid_tags r JOIN students s ON r.student_id=s.id JOIN sections sec ON s.section_id=sec.id WHERE sec.sem_id=?", (sem_id,))
     else:
         rows = Q("SELECT r.*, s.full_name, s.student_no, sec.name AS section_name FROM rfid_tags r JOIN students s ON r.student_id=s.id JOIN sections sec ON s.section_id=sec.id WHERE sec.user_id=?", (g.user_id,))
@@ -552,7 +508,7 @@ def register_rfid():
     uid = d.get('uid','').strip().upper(); student_id = d.get('student_id')
     if not uid or not student_id: return jsonify({'error':'uid and student_id required'}), 400
     if Q("SELECT id FROM rfid_tags WHERE uid=?", (uid,), one=True):
-        return jsonify({'error':'Card UID already registered to another student'}), 400
+        return jsonify({'error':'Card already registered to another student'}), 400
     if Q("SELECT id FROM rfid_tags WHERE student_id=?", (student_id,), one=True):
         return jsonify({'error':'Student already has a card'}), 400
     tag_id = X("INSERT INTO rfid_tags (student_id,uid,self_registered) VALUES (?,?,?)", (student_id, uid, 1 if d.get('self_registered') else 0))
@@ -575,12 +531,13 @@ def lookup_rfid(uid):
 @app.route('/api/sessions', methods=['GET'])
 @auth_required
 def get_sessions():
-    sem_id = request.args.get('sem_id'); sec_id = request.args.get('section_id')
-    base = "SELECT s.*, sec.name AS section_name, sec.subject_code FROM sessions s JOIN sections sec ON s.section_id=sec.id"
+    sec_id = request.args.get('section_id')
+    sem_id = request.args.get('sem_id')
+    base   = "SELECT s.*, sec.name AS section_name, sec.subject_code FROM sessions s JOIN sections sec ON s.section_id=sec.id"
     if sec_id:
         rows = Q(base+" WHERE s.section_id=? ORDER BY s.start_ts DESC", (sec_id,))
     elif sem_id:
-        rows = Q(base+" WHERE sec.sem_id=? AND sec.user_id=? ORDER BY s.start_ts DESC", (sem_id, g.user_id))
+        rows = Q(base+" WHERE sec.sem_id=? ORDER BY s.start_ts DESC", (sem_id,))
     else:
         rows = Q(base+" WHERE sec.user_id=? ORDER BY s.start_ts DESC LIMIT 100", (g.user_id,))
     for row in rows:
@@ -604,9 +561,9 @@ def start_session():
 def close_session(sid):
     sess = Q("SELECT * FROM sessions WHERE id=?", (sid,), one=True)
     if not sess: return jsonify({'error':'Not found'}), 404
-    students = Q("SELECT id FROM students WHERE section_id=?", (sess['section_id'],))
-    recorded = {r['student_id'] for r in Q("SELECT student_id FROM attendance WHERE session_id=?", (sid,))}
-    absent = [s['id'] for s in students if s['id'] not in recorded]
+    students  = Q("SELECT id FROM students WHERE section_id=?", (sess['section_id'],))
+    recorded  = {r['student_id'] for r in Q("SELECT student_id FROM attendance WHERE session_id=?", (sid,))}
+    absent    = [s['id'] for s in students if s['id'] not in recorded]
     if absent:
         XM("INSERT OR IGNORE INTO attendance (session_id,student_id,status) VALUES (?,?,'absent')", [(sid, s) for s in absent])
     X("UPDATE sessions SET is_open=0, end_ts=datetime('now') WHERE id=?", (sid,))
@@ -721,9 +678,9 @@ def get_my_scores():
     scores  = Q("SELECT * FROM grade_scores WHERE section_id=? AND student_id=?", (st['section_id'], st['id']))
     att = {}
     for term in ('mt','ft'):
-        total_sess = Q("SELECT COUNT(*) AS c FROM sessions WHERE section_id=? AND term=? AND is_open=0", (st['section_id'], term), one=True)['c']
-        present    = Q("SELECT COUNT(*) AS c FROM attendance a JOIN sessions ss ON a.session_id=ss.id WHERE a.student_id=? AND ss.section_id=? AND ss.term=? AND a.status IN ('present','late','excuse')", (st['id'], st['section_id'], term), one=True)['c']
-        att[term]  = {'present': present, 'total': total_sess}
+        total = Q("SELECT COUNT(*) AS c FROM sessions WHERE section_id=? AND term=? AND is_open=0", (st['section_id'], term), one=True)['c']
+        pres  = Q("SELECT COUNT(*) AS c FROM attendance a JOIN sessions ss ON a.session_id=ss.id WHERE a.student_id=? AND ss.section_id=? AND ss.term=? AND a.status IN ('present','late','excuse')", (st['id'], st['section_id'], term), one=True)['c']
+        att[term] = {'present': pres, 'total': total}
     return jsonify({'student': st, 'configs': configs, 'scores': scores, 'att': att})
 
 # ── REPORTS ───────────────────────────────────────────────────────────────
@@ -766,13 +723,15 @@ def delete_admin_user(uid):
 @app.route('/', defaults={'path':''})
 @app.route('/<path:path>')
 def spa(path):
-    if path and os.path.exists(os.path.join(app.static_folder, path)):
+    if path and os.path.exists(os.path.join(app.static_folder or '', path)):
         return send_from_directory(app.static_folder, path)
     return send_file(os.path.join(BASE_DIR, 'templates', 'index.html'))
 
+# ── STARTUP ───────────────────────────────────────────────────────────────
+init_db()
+_verify_admin()
+
 if __name__ == '__main__':
-    init_db()
-    print("🚀 EduTrack Pro on http://localhost:5000")
     port = int(os.environ.get('PORT', 5000))
-    debug = os.environ.get('FLASK_ENV') != 'production'
-    app.run(debug=debug, host='0.0.0.0', port=port, use_reloader=False)
+    print(f"DB_PATH = {DB_PATH}")
+    app.run(debug=False, host='0.0.0.0', port=port)
