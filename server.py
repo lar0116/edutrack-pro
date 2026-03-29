@@ -8,20 +8,30 @@ from flask_cors import CORS
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# DB_PATH: use env var, else /tmp on Railway, else local database/
-_env_path = os.environ.get('DB_PATH', '')
-if _env_path:
-    DB_PATH = _env_path
-else:
-    # Try local database folder, fallback to /tmp
-    _local = os.path.join(BASE_DIR, 'database', 'edutrack.db')
-    try:
-        os.makedirs(os.path.join(BASE_DIR, 'database'), exist_ok=True)
-        DB_PATH = _local
-    except:
-        DB_PATH = '/tmp/edutrack.db'
+def _resolve_db_path():
+    """Find a writable path for the DB. Returns the actual path used."""
+    candidates = []
+    env = os.environ.get('DB_PATH', '')
+    if env:
+        candidates.append(env)
+    candidates.append(os.path.join(BASE_DIR, 'database', 'edutrack.db'))
+    candidates.append('/tmp/edutrack.db')
 
-print(f"[STARTUP] DB_PATH={DB_PATH}")
+    for path in candidates:
+        try:
+            d = os.path.dirname(os.path.abspath(path))
+            os.makedirs(d, exist_ok=True)
+            # Test write
+            test = path + '.test'
+            open(test, 'w').close()
+            os.remove(test)
+            print(f"[STARTUP] Using DB_PATH={path}")
+            return path
+        except Exception as e:
+            print(f"[STARTUP] Cannot use {path}: {e}")
+    return '/tmp/edutrack.db'
+
+DB_PATH = _resolve_db_path()
 
 JWT_SECRET = os.environ.get('JWT_SECRET', 'edutrack-pro-secret-2025-xyz')
 JWT_EXPIRY = 72
