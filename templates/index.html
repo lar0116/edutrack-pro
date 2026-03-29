@@ -1,1 +1,2598 @@
 
+<!DOCTYPE html><!-- EduTrack Pro v20260329_112713 -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>EduTrack Pro</title>
+<style>
+:root {
+  --bg: #0d1117; --surface: #161b22; --surface2: #1c2128; --surface3: #21262d;
+  --border: #30363d; --border2: #3d444d;
+  --text: #e6edf3; --text2: #8b949e; --text3: #656d76;
+  --accent: #3b82f6; --accent2: #60a5fa; --accent-dim: rgba(59,130,246,.15);
+  --green: #22c55e; --green-dim: rgba(34,197,94,.12);
+  --red: #ef4444; --red-dim: rgba(239,68,68,.12);
+  --yellow: #f59e0b; --yellow-dim: rgba(245,158,11,.12);
+  --purple: #a78bfa; --orange: #f97316;
+  --radius: 8px; --radius2: 12px;
+  --shadow: 0 4px 24px rgba(0,0,0,.4);
+  --mono: 'Courier New', monospace;
+  --sidebar-w: 220px;
+  --topbar-h: 56px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;line-height:1.5}
+body{background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+a{color:var(--accent);text-decoration:none}
+input,select,textarea{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:8px 12px;width:100%;font-size:13px;outline:none;transition:.15s}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+input::placeholder{color:var(--text3)}
+label{display:block;font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;letter-spacing:.03em}
+button{cursor:pointer;border:none;border-radius:var(--radius);font-size:13px;font-weight:600;padding:8px 16px;transition:.15s;display:inline-flex;align-items:center;gap:6px}
+button:active{transform:scale(.97)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent2)}
+.btn-secondary{background:var(--surface3);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{border-color:var(--border2);background:var(--surface2)}
+.btn-danger{background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+.btn-danger:hover{background:rgba(239,68,68,.2)}
+.btn-success{background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+.btn-sm{padding:5px 10px;font-size:11px}
+.btn-icon{padding:5px 8px;min-width:32px;justify-content:center}
+.w-full{width:100%}
+.hidden{display:none!important}
+
+/* ── LAYOUT ─────────────────────────────── */
+#app{display:flex;height:100vh;overflow:hidden}
+#sidebar{width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;transition:.25s}
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+#topbar{height:var(--topbar-h);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;padding:0 20px;flex-shrink:0}
+#content{flex:1;overflow-y:auto;padding:20px}
+
+/* ── SIDEBAR ────────────────────────────── */
+.sb-logo{padding:16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
+.sb-logo .icon{width:36px;height:36px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.sb-logo .brand{font-size:14px;font-weight:800;line-height:1.2}
+.sb-logo .brand small{display:block;font-size:10px;font-weight:400;color:var(--text3)}
+.sb-context{padding:8px 12px;margin:8px;background:var(--accent-dim);border:1px solid rgba(59,130,246,.3);border-radius:8px;font-size:11px;cursor:pointer}
+.sb-context:hover{background:rgba(59,130,246,.2)}
+.sb-context .ctx-label{font-weight:700;color:var(--accent);margin-bottom:1px}
+.sb-context .ctx-val{color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb-section{padding:12px 12px 4px;font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.08em;text-transform:uppercase}
+.sb-item{display:flex;align-items:center;gap:10px;padding:8px 12px;margin:1px 6px;border-radius:var(--radius);font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;transition:.15s;white-space:nowrap}
+.sb-item:hover{background:var(--surface2);color:var(--text)}
+.sb-item.active{background:var(--accent-dim);color:var(--accent);font-weight:700}
+.sb-item .si{width:18px;text-align:center}
+.sb-footer{margin-top:auto;padding:12px;border-top:1px solid var(--border)}
+.user-chip{display:flex;align-items:center;gap:8px;padding:8px;border-radius:var(--radius);cursor:pointer}
+.user-chip:hover{background:var(--surface2)}
+.user-avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--purple));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0}
+.user-info .uname{font-weight:600;font-size:12px;line-height:1.2}
+.user-info .urole{font-size:10px;color:var(--text3)}
+
+/* ── TOPBAR ─────────────────────────────── */
+.page-title{font-size:16px;font-weight:800;flex:1}
+.topbar-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+
+/* ── CARDS ──────────────────────────────── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);padding:16px;margin-bottom:12px}
+.card-title{font-size:13px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);padding:14px;display:flex;align-items:center;gap:12px}
+.stat-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.stat-icon.green{background:var(--green-dim)}
+.stat-icon.red{background:var(--red-dim)}
+.stat-icon.blue{background:var(--accent-dim)}
+.stat-icon.purple{background:rgba(167,139,250,.12)}
+.stat-icon.yellow{background:var(--yellow-dim)}
+.stat-value{font-size:22px;font-weight:800;line-height:1.1;font-family:var(--mono)}
+.stat-label{font-size:11px;color:var(--text2)}
+
+/* ── GRIDS ──────────────────────────────── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+
+/* ── TABLES ─────────────────────────────── */
+.table-wrap{overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border);margin-bottom:4px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:var(--surface2);padding:8px 10px;text-align:left;font-size:11px;font-weight:700;white-space:nowrap;color:var(--text2);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1}
+td{padding:7px 10px;border-bottom:1px solid rgba(48,54,61,.5);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.02)}
+.text-mono{font-family:var(--mono)}
+.text-sm{font-size:12px}
+.text-xs{font-size:11px}
+.text-muted{color:var(--text2)}
+.fw-bold{font-weight:700}
+
+/* ── BADGES ─────────────────────────────── */
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.badge-blue{background:var(--accent-dim);color:var(--accent);border:1px solid rgba(59,130,246,.3)}
+.badge-green{background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+.badge-red{background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,.3)}
+.badge-yellow{background:var(--yellow-dim);color:var(--yellow);border:1px solid rgba(245,158,11,.3)}
+.badge-purple{background:rgba(167,139,250,.1);color:var(--purple);border:1px solid rgba(167,139,250,.3)}
+.badge-orange{background:rgba(249,115,22,.1);color:var(--orange);border:1px solid rgba(249,115,22,.3)}
+.badge-gray{background:var(--surface3);color:var(--text2);border:1px solid var(--border)}
+
+/* ── FORMS ──────────────────────────────── */
+.form-group{margin-bottom:12px}
+.form-row{display:grid;gap:10px}
+.form-row.cols-2{grid-template-columns:1fr 1fr}
+.form-row.cols-3{grid-template-columns:1fr 1fr 1fr}
+.form-hint{font-size:10px;color:var(--text3);margin-top:3px}
+.search-wrap{position:relative}
+.search-wrap input{padding-left:32px}
+.search-wrap::before{content:'🔍';position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:12px;pointer-events:none}
+
+/* ── SECTION CARDS ──────────────────────── */
+.section-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius2);padding:16px;cursor:pointer;transition:.2s;position:relative;overflow:hidden}
+.section-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.section-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 6px 24px rgba(59,130,246,.15)}
+.sc-name{font-size:20px;font-weight:800;font-family:var(--mono)}
+.sc-subject{font-size:12px;color:var(--text2);margin-top:2px}
+.sc-stats{display:flex;gap:16px;margin-top:10px}
+.sc-stat{font-size:11px;color:var(--text2)}
+.sc-stat strong{color:var(--text);font-size:15px;display:block}
+
+/* ── MODAL ──────────────────────────────── */
+#modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;display:flex;align-items:center;justify-content:center;padding:16px}
+#modal-overlay.hidden{display:none!important}
+.modal-box{background:var(--surface);border:1px solid var(--border2);border-radius:16px;padding:20px;width:100%;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.modal-sm{max-width:440px}
+.modal-md{max-width:560px}
+.modal-lg{max-width:700px}
+.modal-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.modal-title{font-size:15px;font-weight:800}
+.modal-close{background:transparent;color:var(--text2);padding:4px 8px;font-size:16px;border-radius:6px}
+.modal-close:hover{background:var(--surface2)}
+.modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;padding-top:12px;border-top:1px solid var(--border)}
+
+/* ── TOAST ──────────────────────────────── */
+#toast-container{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+.toast{padding:10px 16px;border-radius:var(--radius);font-size:13px;font-weight:600;max-width:320px;animation:slideIn .25s ease;display:flex;align-items:center;gap:8px;box-shadow:var(--shadow)}
+.toast-success{background:#064e3b;color:#6ee7b7;border:1px solid rgba(110,231,183,.3)}
+.toast-error{background:#450a0a;color:#fca5a5;border:1px solid rgba(252,165,165,.3)}
+.toast-info{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.toast-warning{background:#451a03;color:#fdba74;border:1px solid rgba(253,186,116,.3)}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* ── MISC ───────────────────────────────── */
+.empty-state{text-align:center;padding:48px 20px;color:var(--text3)}
+.empty-state .es-icon{font-size:40px;margin-bottom:10px}
+.empty-state .es-title{font-size:15px;font-weight:600;color:var(--text2);margin-bottom:6px}
+.divider{border:none;border-top:1px solid var(--border);margin:14px 0}
+.progress-bar{height:6px;background:var(--surface3);border-radius:3px;overflow:hidden;margin:4px 0}
+.progress-fill{height:100%;border-radius:3px;transition:.3s}
+.mb-2{margin-bottom:8px}
+.mb-3{margin-bottom:12px}
+.mb-4{margin-bottom:16px}
+.mt-2{margin-top:8px}
+.mt-3{margin-top:12px}
+.flex{display:flex}
+.flex-center{display:flex;align-items:center}
+.gap-2{gap:8px}
+.gap-3{gap:12px}
+
+/* ── GRADESHEET ─────────────────────────── */
+.gs-outer{overflow:auto;max-height:72vh;border:1px solid var(--border);border-radius:var(--radius)}
+.gs-outer::-webkit-scrollbar{height:8px;width:8px}
+.gs-outer::-webkit-scrollbar-track{background:var(--surface2)}
+.gs-outer::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+.gs-table{border-collapse:collapse;font-size:11px;min-width:800px}
+.gs-table th,.gs-table td{border:1px solid var(--border);padding:5px 8px;white-space:nowrap}
+.gs-table thead th{background:var(--surface2);position:sticky;top:0;z-index:5;font-size:10px;font-weight:700}
+.gs-table .col-sticky{position:sticky;left:0;background:var(--surface);z-index:4}
+.gs-table thead th.col-sticky{z-index:6}
+.gs-table input[type=number]{width:54px;padding:3px 5px;font-size:11px;text-align:center;background:transparent;border:1px solid transparent}
+.gs-table input[type=number]:focus{background:var(--surface2);border-color:var(--accent)}
+
+/* ── ATTENDANCE COLORS ──────────────────── */
+.att-present td{background:rgba(34,197,94,.03)}
+.att-late td{background:rgba(245,158,11,.04)}
+.att-excuse td{background:rgba(59,130,246,.04)}
+.att-absent td{background:rgba(239,68,68,.04)}
+
+/* ── LOGIN ──────────────────────────────── */
+#login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);padding:16px}
+.login-box{width:100%;max-width:380px;background:var(--surface);border:1px solid var(--border2);border-radius:20px;padding:32px;box-shadow:var(--shadow)}
+.login-logo{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+.login-logo .icon{width:48px;height:48px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
+.login-logo .name{font-size:20px;font-weight:800}
+.login-logo .tagline{font-size:11px;color:var(--text3)}
+.role-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:20px}
+.role-tab{padding:9px;border-radius:8px;font-size:12px;font-weight:700;text-align:center;cursor:pointer;background:var(--surface2);color:var(--text2);border:1px solid var(--border);transition:.15s}
+.role-tab.active{background:var(--accent-dim);color:var(--accent);border-color:var(--accent)}
+
+/* ── RFID GATE ──────────────────────────── */
+#rfid-gate{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+.gate-box{width:100%;max-width:460px;background:var(--surface);border:1px solid var(--border2);border-radius:20px;padding:32px;text-align:center;box-shadow:var(--shadow)}
+@keyframes scan{from{transform:translateX(-100%)}to{transform:translateX(100%)}}}
+@keyframes pulse-ring{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.1);opacity:.7}}
+
+/* ── SESSION ACTIVE ─────────────────────── */
+.session-active{background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.3);border-radius:var(--radius2);padding:14px;margin-bottom:14px}
+.session-timer{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--green)}
+
+/* ── RESPONSIVE ─────────────────────────── */
+@media(max-width:768px){
+  #sidebar{position:fixed;left:-240px;top:0;bottom:0;z-index:50;width:var(--sidebar-w)}
+  #sidebar.open{left:0;box-shadow:4px 0 24px rgba(0,0,0,.5)}
+  #sidebar-overlay{display:block}
+  #content{padding:12px}
+  .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
+  .form-row.cols-2,.form-row.cols-3{grid-template-columns:1fr}
+  .gs-outer{max-height:55vh}
+  .topbar-right .btn-sm span{display:none}
+  .modal-box{padding:16px}
+}
+#sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:49}
+#mobile-menu-btn{display:none}
+@media(max-width:768px){#mobile-menu-btn{display:flex}}
+
+/* ── GRADE COLORS ───────────────────────── */
+.rem-excellent{color:#a78bfa}
+.rem-verygood{color:var(--accent)}
+.rem-good{color:var(--green)}
+.rem-satisfactory{color:var(--yellow)}
+.rem-passing{color:var(--orange)}
+.rem-cpass{color:#f97316}
+.rem-cfail{color:var(--orange)}
+.rem-failure{color:var(--red)}
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="icon">🎓</div>
+      <div>
+        <div class="name">EduTrack Pro</div>
+        <div class="tagline">RFID/NFC Attendance &amp; Grading System</div>
+      </div>
+    </div>
+    <div class="role-tabs">
+      <div class="role-tab active" id="tab-admin" onclick="setRole('admin')">👨‍🏫 Admin</div>
+      <div class="role-tab" id="tab-student" onclick="setRole('student')">👨‍🎓 Student</div>
+    </div>
+    <div id="form-admin">
+      <div class="form-group"><label>Username</label>
+        <input id="l-user" placeholder="Enter username" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div class="form-group"><label>Password</label>
+        <input id="l-pass" type="password" placeholder="Enter password" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+    </div>
+    <div id="form-student" class="hidden">
+      <div class="form-group"><label>Student Number</label>
+        <input id="l-sno" placeholder="e.g. 2023300356" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+    </div>
+    <button class="btn-primary w-full" onclick="doLogin()" style="padding:11px;justify-content:center;border-radius:var(--radius)">
+      🔐 Sign In
+    </button>
+    <div id="login-err" style="color:var(--red);font-size:12px;text-align:center;margin-top:8px;display:none"></div>
+  </div>
+</div>
+
+<!-- RFID REGISTRATION GATE -->
+<div id="rfid-gate" class="hidden">
+  <div class="gate-box">
+    <div style="width:72px;height:72px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 20px">📡</div>
+    <div style="font-size:20px;font-weight:800;margin-bottom:6px">Register Your ID Card</div>
+    <div id="gate-name" style="font-size:13px;color:var(--text2);margin-bottom:2px"></div>
+    <div id="gate-sno" style="font-size:11px;color:var(--text3);margin-bottom:24px"></div>
+    <div id="gate-nfc-area" style="background:rgba(59,130,246,.06);border:2px dashed rgba(59,130,246,.5);border-radius:14px;padding:24px;margin-bottom:20px;position:relative;overflow:hidden">
+      <div style="font-size:44px;animation:pulse-ring 1.5s infinite">📡</div>
+      <div style="font-weight:700;font-size:14px;margin:10px 0 4px">Tap RFID / NFC card</div>
+      <div style="font-size:12px;color:var(--text2)">Or use USB RFID reader — scan automatically</div>
+      <div id="gate-nfc-status" style="margin-top:8px;font-size:11px;color:var(--accent)"></div>
+    </div>
+    <div id="gate-nfc-btn-wrap" style="margin-bottom:12px"></div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px">— or enter card UID manually —</div>
+    <div style="display:flex;gap:8px;margin-bottom:20px">
+      <input id="gate-uid" placeholder="Card UID (e.g. A1B2C3D4)" onkeydown="if(event.key==='Enter')submitGate()">
+      <button class="btn-primary btn-sm" style="white-space:nowrap" onclick="submitGate()">✅ Register</button>
+    </div>
+    <div style="font-size:11px;color:var(--text3);padding-top:12px;border-top:1px solid var(--border)">
+      You must register your RFID/NFC card to access the student portal.<br>Contact your professor if you don't have a card.
+    </div>
+    <button class="btn-secondary btn-sm" style="margin-top:12px;width:100%;justify-content:center" onclick="doLogout()">← Back to Login</button>
+  </div>
+</div>
+
+<!-- MOBILE SIDEBAR OVERLAY -->
+<div id="sidebar-overlay" onclick="closeMobileSidebar()"></div>
+
+<!-- MAIN APP -->
+<div id="app" class="hidden" style="height:100vh">
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div class="sb-logo">
+      <div class="icon">🎓</div>
+      <div class="brand">EduTrack Pro<small>Academic System</small></div>
+    </div>
+    <!-- AY Context Badge -->
+    <div class="sb-context" onclick="navigate('schoolyears')" id="sb-context" title="Click to manage semesters">
+      <div class="ctx-label">📅 Active Context</div>
+      <div class="ctx-val" id="sb-ctx-val">No semester set</div>
+    </div>
+    <div id="sidebar-nav"></div>
+    <div class="sb-footer">
+      <div class="user-chip" onclick="navigate('settings')">
+        <div class="user-avatar" id="user-avatar">?</div>
+        <div class="user-info">
+          <div class="uname" id="user-display-name">User</div>
+          <div class="urole" id="user-display-role">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div id="main">
+    <div id="topbar">
+      <button id="mobile-menu-btn" class="btn-secondary btn-sm btn-icon" onclick="openMobileSidebar()">☰</button>
+      <div class="page-title" id="page-title">Dashboard</div>
+      <div class="topbar-right" id="topbar-actions"></div>
+      <button class="btn-secondary btn-sm" onclick="doLogout()" style="margin-left:8px">🚪 Logout</button>
+    </div>
+    <div id="content"></div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay" class="hidden" onclick="if(event.target===this)closeModal()">
+  <div id="modal-box" class="modal-box modal-md"></div>
+</div>
+
+<!-- TOAST -->
+<div id="toast-container"></div>
+
+<script>
+'use strict';
+/* ══════════════════════════════════════════════════
+   API LAYER
+══════════════════════════════════════════════════ */
+const API_BASE = '';
+let _token = localStorage.getItem('et_token');
+let _currentUser = null;
+let _activeSem = null;   // {id, label, ay_id, year, is_active}
+
+async function api(method, path, body=null, noAuth=false) {
+  // ALWAYS re-read token from localStorage — most reliable approach
+  const freshToken = localStorage.getItem('et_token');
+  if (freshToken) _token = freshToken;
+
+  const headers = {'Content-Type': 'application/json'};
+  if (!noAuth && _token) {
+    headers['Authorization'] = 'Bearer ' + _token;
+    console.debug('[API]', method, path, '— token:', _token.slice(0,20) + '...');
+  } else if (!noAuth) {
+    console.warn('[API]', method, path, '— NO TOKEN!');
+  }
+
+  const opts = { method, headers };
+  if (body) opts.body = JSON.stringify(body);
+
+  const r = await fetch(API_BASE + path, opts);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const msg = data.error || ('HTTP ' + r.status);
+    console.error('[API ERROR]', method, path, '→', r.status, data);
+    throw new Error(msg);
+  }
+  return data;
+}
+
+/* ══════════════════════════════════════════════════
+   AUTH
+══════════════════════════════════════════════════ */
+let _loginRole = 'admin';
+function setRole(r) {
+  _loginRole = r;
+  document.getElementById('tab-admin').classList.toggle('active', r==='admin');
+  document.getElementById('tab-student').classList.toggle('active', r==='student');
+  document.getElementById('form-admin').classList.toggle('hidden', r!=='admin');
+  document.getElementById('form-student').classList.toggle('hidden', r!=='student');
+}
+
+async function doLogin() {
+  const errEl = document.getElementById('login-err');
+  errEl.style.display = 'none';
+  // Clear any stale token before a fresh login attempt
+  _token = null;
+  localStorage.removeItem('et_token');
+  try {
+    let res;
+    if (_loginRole === 'admin') {
+      const u = document.getElementById('l-user').value.trim();
+      const p = document.getElementById('l-pass').value;
+      if (!u || !p) { showLoginErr('Enter username and password'); return; }
+      res = await api('POST', '/api/auth/login', {role:'admin', username:u, password:p}, true);
+    } else {
+      const sno = document.getElementById('l-sno').value.trim();
+      if (!sno) { showLoginErr('Enter your student number'); return; }
+      res = await api('POST', '/api/auth/login', {role:'student', student_no:sno}, true);
+    }
+    _token = res.token;
+    localStorage.setItem('et_token', _token);
+    await afterLogin(res);
+  } catch(e) {
+    showLoginErr(e.message);
+  }
+}
+
+function showLoginErr(msg) {
+  const el = document.getElementById('login-err');
+  el.textContent = '⚠️ ' + msg;
+  el.style.display = 'block';
+}
+
+async function afterLogin(res) {
+  _currentUser = res.role === 'student' ? {...res.user, role:'student', student_id: res.student_id} : {...res.user, role:'admin'};
+  if (res.role === 'student') {
+    if (!res.has_rfid) { showRFIDGate(); return; }
+    showApp();
+  } else {
+    showApp();
+  }
+}
+
+async function tryAutoLogin() {
+  if (!_token) return false;
+  try {
+    const me = await api('GET', '/api/auth/me');
+    if (me.role === 'admin') {
+      _currentUser = me;
+      showApp();
+    } else {
+      // Student — check for rfid
+      const students = await api('GET', '/api/students');
+      const st = students[0];
+      if (!st) { doLogout(); return false; }
+      _currentUser = {...st, role:'student', student_id: st.id};
+      if (!st.uid) { showRFIDGate(); return true; }
+      showApp();
+    }
+    return true;
+  } catch {
+    localStorage.removeItem('et_token');
+    _token = null;
+    return false;
+  }
+}
+
+function doLogout() {
+  _token = null; _currentUser = null; _activeSem = null;
+  localStorage.removeItem('et_token');
+  const app = document.getElementById('app');
+  const gate = document.getElementById('rfid-gate');
+  const ls = document.getElementById('login-screen');
+  app.classList.add('hidden'); app.style.display = 'none';
+  gate.classList.add('hidden'); gate.style.display = 'none';
+  ls.classList.remove('hidden'); ls.style.display = 'flex';
+  ['l-user','l-pass','l-sno'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('login-err').style.display='none';
+}
+
+/* ══════════════════════════════════════════════════
+   RFID GATE
+══════════════════════════════════════════════════ */
+let _gateRFIDBuf = '';
+let _gateRFIDTimer = null;
+let _gateKPListener = null;
+
+function showRFIDGate() {
+  const ls = document.getElementById('login-screen');
+  const app = document.getElementById('app');
+  const gate = document.getElementById('rfid-gate');
+  ls.classList.add('hidden'); ls.style.display = 'none';
+  app.classList.add('hidden'); app.style.display = 'none';
+  gate.classList.remove('hidden'); gate.style.display = 'flex';
+  const st = _currentUser;
+  document.getElementById('gate-name').textContent = st.full_name || st.name || '';
+  document.getElementById('gate-sno').textContent = 'Student No. ' + (st.student_no || '');
+  initGateNFC();
+  initGateKeyboard();
+}
+
+function initGateNFC() {
+  const statusEl = document.getElementById('gate-nfc-status');
+  const btnWrap  = document.getElementById('gate-nfc-btn-wrap');
+  if ('NDEFReader' in window) {
+    btnWrap.innerHTML = '<button class="btn-primary btn-sm" style="width:100%;justify-content:center" onclick="startNFCScan()">📱 Start NFC Scan</button>';
+  } else {
+    statusEl.textContent = 'NFC not available on this browser/device. Use USB reader or manual UID.';
+    btnWrap.innerHTML = '';
+  }
+}
+
+let _nfcGateScanning = false;
+async function startNFCScan() {
+  if (_nfcGateScanning) return; // prevent multiple scans
+  const statusEl = document.getElementById('gate-nfc-status');
+  const btnWrap  = document.getElementById('gate-nfc-btn-wrap');
+  try {
+    _nfcGateScanning = true;
+    statusEl.textContent = '📡 Scanning… hold card near device.';
+    btnWrap.innerHTML = '<button class="btn-secondary btn-sm" style="width:100%;justify-content:center" onclick="stopNFCScan()">⏹ Stop Scan</button>';
+    const reader = new NDEFReader();
+    window._nfcGateReader = reader;
+    await reader.scan();
+    reader.onreading = async (e) => {
+      if (!_nfcGateScanning) return; // already processed
+      _nfcGateScanning = false; // one-shot — stop after first read
+      const uid = e.serialNumber.replace(/:/g,'').toUpperCase();
+      statusEl.textContent = '✅ Card detected: ' + uid;
+      document.getElementById('gate-uid').value = uid;
+      btnWrap.innerHTML = '';
+      await submitGate();
+    };
+  } catch(e) {
+    _nfcGateScanning = false;
+    statusEl.textContent = '⚠️ NFC error: ' + e.message;
+    btnWrap.innerHTML = '<button class="btn-primary btn-sm" style="width:100%;justify-content:center" onclick="startNFCScan()">📱 Start NFC Scan</button>';
+  }
+}
+function stopNFCScan() {
+  _nfcGateScanning = false;
+  const btnWrap = document.getElementById('gate-nfc-btn-wrap');
+  if (btnWrap) btnWrap.innerHTML = '<button class="btn-primary btn-sm" style="width:100%;justify-content:center" onclick="startNFCScan()">📱 Start NFC Scan</button>';
+  const statusEl = document.getElementById('gate-nfc-status');
+  if (statusEl) statusEl.textContent = '';
+}
+
+function initGateKeyboard() {
+  _gateKPListener = (e) => {
+    if (e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+    if (e.key === 'Enter') {
+      if (_gateRFIDBuf.length >= 4) {
+        document.getElementById('gate-uid').value = _gateRFIDBuf;
+        submitGate();
+      }
+      _gateRFIDBuf = '';
+    } else if (e.key.length === 1) {
+      _gateRFIDBuf += e.key;
+      clearTimeout(_gateRFIDTimer);
+      _gateRFIDTimer = setTimeout(()=>{ _gateRFIDBuf=''; }, 150);
+    }
+  };
+  document.addEventListener('keydown', _gateKPListener);
+}
+
+async function submitGate() {
+  const uid = (document.getElementById('gate-uid')?.value || '').trim().toUpperCase();
+  if (uid.length < 4) { toast('Enter a valid card UID (min 4 characters)', 'error'); return; }
+  const st = _currentUser;
+  try {
+    await api('POST', '/api/rfid', { uid, student_id: st.student_id || st.id, self_registered: true });
+    if (_gateKPListener) { document.removeEventListener('keydown', _gateKPListener); _gateKPListener=null; }
+    toast('✅ Card registered!', 'success');
+    document.getElementById('rfid-gate').classList.add('hidden');
+    showApp();
+  } catch(e) {
+    toast(e.message, 'error');
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   APP SHELL
+══════════════════════════════════════════════════ */
+const ADMIN_NAV = [
+  {section:'Overview', items:[{id:'dashboard',icon:'📊',label:'Dashboard'}]},
+  {section:'Academic', items:[
+    {id:'schoolyears',icon:'🗓️',label:'School Years'},
+    {id:'sections',  icon:'🏫',label:'Sections'},
+    {id:'students',  icon:'👥',label:'Students'},
+    {id:'rfid',      icon:'📡',label:'RFID / NFC Tags'},
+  ]},
+  {section:'Operations', items:[
+    {id:'attendance',icon:'⏱️',label:'Attendance'},
+    {id:'grades',    icon:'📋',label:'Gradesheets'},
+  ]},
+  {section:'Reports', items:[{id:'reports',icon:'📑',label:'Reports'}]},
+  {section:'Account', items:[{id:'settings',icon:'⚙️',label:'Settings'}]},
+];
+const STUDENT_NAV = [
+  {section:'My Portal', items:[
+    {id:'dashboard', icon:'🏠',label:'Overview'},
+    {id:'my-attendance',icon:'⏱️',label:'My Attendance'},
+    {id:'my-scores', icon:'📊',label:'My Scores & Grades'},
+    {id:'my-card',   icon:'📡',label:'My RFID Card'},
+  ]},
+  {section:'Account', items:[{id:'settings',icon:'⚙️',label:'Settings'}]},
+];
+
+async function showApp() {
+  // Use both class AND inline style to be absolutely sure
+  const ls = document.getElementById('login-screen');
+  const gate = document.getElementById('rfid-gate');
+  const app = document.getElementById('app');
+  ls.classList.add('hidden');
+  ls.style.display = 'none';
+  gate.classList.add('hidden');
+  gate.style.display = 'none';
+  app.classList.remove('hidden');
+  app.style.display = 'flex';
+
+  // Update sidebar user info
+  const name = _currentUser.full_name || _currentUser.name || '';
+  const firstName = (name.includes(',')?name.split(',').slice(1).join('').trim().split(' ')[0]:name.split(' ')[0]) || name;
+  document.getElementById('user-display-name').textContent = name;
+  document.getElementById('user-display-role').textContent = _currentUser.role==='admin' ? '👨‍🏫 Administrator' : '👨‍🎓 Student';
+  document.getElementById('user-avatar').textContent = (firstName[0]||'U').toUpperCase();
+
+  // Build nav
+  const nav = document.getElementById('sidebar-nav');
+  const navItems = _currentUser.role==='admin' ? ADMIN_NAV : STUDENT_NAV;
+  nav.innerHTML = navItems.map(sec=>`
+    <div class="sb-section">${sec.section}</div>
+    ${sec.items.map(it=>`<div class="sb-item" id="nav-${it.id}" onclick="navigate('${it.id}')">
+      <span class="si">${it.icon}</span>${it.label}
+    </div>`).join('')}
+  `).join('');
+
+  // Load active semester
+  try {
+    _activeSem = await api('GET', '/api/semesters/active');
+    updateSemBadge();
+  } catch {}
+
+  navigate('dashboard');
+  toast(`Welcome, ${firstName}! 👋`, 'success');
+}
+
+function updateSemBadge() {
+  const el = document.getElementById('sb-ctx-val');
+  if (_activeSem && _activeSem.id) {
+    el.textContent = `${_activeSem.year} · ${_activeSem.label}`;
+  } else {
+    el.textContent = 'No semester set';
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   NAVIGATION
+══════════════════════════════════════════════════ */
+let _currentPage = null;
+function navigate(page) {
+  _currentPage = page;
+  document.querySelectorAll('.sb-item').forEach(el=>{
+    el.classList.toggle('active', el.id==='nav-'+page);
+  });
+  const titles = {
+    dashboard:'Dashboard', schoolyears:'School Years', sections:'Sections',
+    students:'Students', rfid:'RFID / NFC Tags', attendance:'Attendance',
+    grades:'Gradesheets', reports:'Reports', settings:'Settings',
+    'my-attendance':'My Attendance', 'my-scores':'My Scores & Grades', 'my-card':'My RFID Card',
+  };
+  document.getElementById('page-title').textContent = titles[page]||page;
+  document.getElementById('topbar-actions').innerHTML = '';
+  const c = document.getElementById('content');
+  c.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3)">⏳ Loading…</div>';
+  closeMobileSidebar();
+  const pages = {
+    dashboard: pgDashboard, schoolyears: pgSchoolYears, sections: pgSections,
+    students: pgStudents, rfid: pgRFID, attendance: pgAttendance,
+    grades: pgGrades, reports: pgReports, settings: pgSettings,
+    'my-attendance': pgMyAttendance, 'my-scores': pgMyScores, 'my-card': pgMyCard,
+  };
+  if (pages[page]) pages[page](c);
+  else c.innerHTML = `<div class="empty-state"><div class="es-icon">🚧</div><div class="es-title">Page not found</div></div>`;
+}
+
+function openMobileSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebar-overlay').style.display='block';
+}
+function closeMobileSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').style.display='none';
+}
+
+/* ══════════════════════════════════════════════════
+   MODAL & TOAST
+══════════════════════════════════════════════════ */
+function showModal(html, size='modal-md') {
+  const ov = document.getElementById('modal-overlay');
+  const box = document.getElementById('modal-box');
+  box.className = 'modal-box ' + size;
+  box.innerHTML = html;
+  ov.classList.remove('hidden');
+}
+function closeModal() {
+  document.getElementById('modal-overlay').classList.add('hidden');
+  document.getElementById('modal-box').innerHTML='';
+}
+
+function toast(msg, type='info') {
+  const c = document.getElementById('toast-container');
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + type;
+  el.innerHTML = (type==='success'?'✅':type==='error'?'❌':type==='warning'?'⚠️':'ℹ️') + ' ' + msg;
+  c.appendChild(el);
+  setTimeout(()=>el.remove(), 3500);
+}
+
+/* ══════════════════════════════════════════════════
+   HELPERS
+══════════════════════════════════════════════════ */
+function sem_guard(c) {
+  if (!_activeSem || !_activeSem.id) {
+    c.innerHTML = `
+      <div style="max-width:500px;margin:48px auto;text-align:center">
+        <div style="font-size:48px;margin-bottom:16px">🗓️</div>
+        <div style="font-size:20px;font-weight:800;margin-bottom:8px">No Active Semester</div>
+        <div style="color:var(--text2);margin-bottom:20px">Set an active semester in School Years to use this feature.</div>
+        <button class="btn-primary" onclick="navigate('schoolyears')">🗓️ Go to School Years</button>
+      </div>`;
+    return true;
+  }
+  return false;
+}
+
+function ctxBadge() {
+  if (!_activeSem||!_activeSem.id) return '<span class="badge badge-orange">⚠️ No active semester</span>';
+  return `<span class="badge badge-blue">📅 ${_activeSem.year} · ${_activeSem.label}</span>`;
+}
+
+function transmute(rpg) {
+  const table=[
+    [97.75,100,'1.00','Excellent'],
+    [93.25,97.74,'1.25','Excellent'],
+    [88.75,93.24,'1.50','Very Good'],
+    [84.25,88.74,'1.75','Very Good'],
+    [79.75,84.24,'2.00','Good'],
+    [75.25,79.74,'2.25','Good'],
+    [70.75,75.24,'2.50','Satisfactory'],
+    [66.25,70.74,'2.75','Satisfactory'],
+    [60,66.24,'3.00','Passing'],
+    [52,59.99,'3.25','Conditional Pass'],
+    [44,51.99,'3.50','Conditional Pass'],
+    [36,43.99,'3.75','Conditional Failure'],
+    [28,35.99,'4.00','Conditional Failure'],
+    [0,27.99,'5.00','Failure'],
+  ];
+  for(const [lo,hi,g,r] of table) if(rpg>=lo&&rpg<=hi) return {grade:g,remarks:r};
+  return {grade:'5.00',remarks:'Failure'};
+}
+
+function remarkClass(rem) {
+  if(!rem) return '';
+  const r = rem.toLowerCase();
+  if(r.includes('excellent')) return 'rem-excellent';
+  if(r.includes('very good')) return 'rem-verygood';
+  if(r==='good') return 'rem-good';
+  if(r.includes('satisfact')) return 'rem-satisfactory';
+  if(r==='passing') return 'rem-passing';
+  if(r.includes('cond')&&r.includes('pass')) return 'rem-cpass';
+  if(r.includes('cond')&&r.includes('fail')) return 'rem-cfail';
+  if(r==='failure') return 'rem-failure';
+  return '';
+}
+
+function fmtDate(d) {
+  if(!d) return '—';
+  return new Date(d).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'});
+}
+function fmtTime(d) {
+  if(!d) return '—';
+  return new Date(d).toLocaleTimeString('en-PH',{hour:'2-digit',minute:'2-digit'});
+}
+
+/* ══════════════════════════════════════════════════
+   PAGE: DASHBOARD
+══════════════════════════════════════════════════ */
+async function pgDashboard(c) {
+  if (_currentUser.role === 'student') { pgStudentDashboard(c); return; }
+
+  c.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">⏳ Loading dashboard…</div>';
+
+  // AY data
+  const ays = await api('GET', '/api/academic-years').catch(()=>[]);
+
+  // Active sections
+  const sections = _activeSem?.id ? await api('GET', `/api/sections?sem_id=${_activeSem.id}`).catch(()=>[]) : [];
+
+  // Absence leaders
+  const leaders = _activeSem?.id ? await api('GET', `/api/reports/absence-leaders/${_activeSem.id}`).catch(()=>[]) : [];
+
+  // Today's schedules
+  const DAYS = ['SUN','MON','TUE','WED','THURS','FRI','SAT'];
+  const today = DAYS[new Date().getDay()];
+  const tmrw  = DAYS[(new Date().getDay()+1)%7];
+  const todaySlots=[], tmrwSlots=[];
+  for(const sec of sections) {
+    for(const slot of (sec.slots||[])) {
+      if(slot.day===today) todaySlots.push({...slot,sec});
+      if(slot.day===tmrw)  tmrwSlots.push({...slot,sec});
+    }
+  }
+
+  // Stats
+  const totalStudents = sections.reduce((a,s)=>a+(s.student_count||0),0);
+
+  c.innerHTML = `
+    <!-- Active AY Dropdown -->
+    <div class="card mb-4" style="padding:14px 16px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:700">📅 Academic Year / Semester:</span>
+        <select id="dash-sem-select" style="width:280px;font-weight:600" onchange="switchActiveSem(this.value)">
+          <option value="">— Select Active Semester —</option>
+          ${ays.map(ay=>(ay.semesters||[]).map(sem=>`
+            <option value="${sem.id}" ${sem.id===_activeSem?.id?'selected':''}>
+              ${ay.year} — ${sem.label}
+            </option>`).join('')).join('')}
+        </select>
+        ${_activeSem?.id ? `<span class="badge badge-green">✅ Active</span>` : `<span class="badge badge-orange">⚠️ None selected</span>`}
+        <button class="btn-secondary btn-sm" onclick="navigate('schoolyears')">Manage</button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid-4 mb-4">
+      <div class="stat-card"><div class="stat-icon blue">🏫</div><div><div class="stat-value">${sections.length}</div><div class="stat-label">Sections</div></div></div>
+      <div class="stat-card"><div class="stat-icon green">👥</div><div><div class="stat-value">${totalStudents}</div><div class="stat-label">Students</div></div></div>
+      <div class="stat-card"><div class="stat-icon yellow">📅</div><div><div class="stat-value">${todaySlots.length}</div><div class="stat-label">Classes Today</div></div></div>
+      <div class="stat-card"><div class="stat-icon red">❌</div><div><div class="stat-value">${leaders.length}</div><div class="stat-label">Students w/ Absences</div></div></div>
+    </div>
+
+    <div class="grid-2">
+      <!-- Upcoming Schedules -->
+      <div class="card">
+        <div class="card-title">📅 Upcoming Schedules</div>
+        ${!_activeSem?.id ? `<div class="empty-state" style="padding:20px"><div class="es-icon" style="font-size:28px">⚠️</div><div class="es-title">Select active semester first</div></div>` :
+          (todaySlots.length===0&&tmrwSlots.length===0) ? `<div style="color:var(--text3);font-size:13px">No scheduled classes today or tomorrow.</div>` :
+          [...todaySlots.map(s=>({...s,label:'TODAY',cls:'border-color:var(--green);background:rgba(34,197,94,.05)'})),
+           ...tmrwSlots.map(s=>({...s,label:'TOMORROW',cls:'border-color:var(--accent);background:rgba(59,130,246,.05)'}))].map(s=>`
+          <div style="border:1px solid var(--border);${s.cls};border-radius:8px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px">
+            <div style="font-size:11px;font-weight:700;color:${s.label==='TODAY'?'var(--green)':'var(--accent)'}">
+              ${s.label}</div>
+            <div style="flex:1">
+              <div style="font-weight:700;font-size:13px">${s.sec.name} — ${s.sec.subject_code}</div>
+              <div style="font-size:11px;color:var(--text2)">${s.slot_type==='lab'?'🔬 Lab':'📖 Lec'} · ${s.day} ${s.time_start}–${s.time_end} · ${s.room||'—'}</div>
+            </div>
+            ${s.label==='TODAY'?`<button class="btn-success btn-sm" onclick="startSessionQuick(${s.sec.id},'${s.day}','${s.slot_type}','${s.time_start}','${s.time_end}','${s.room||''}')">▶️ Start</button>`:''}
+          </div>`).join('')}
+      </div>
+
+      <!-- Absence Leaders -->
+      <div class="card">
+        <div class="card-title">⚠️ Most Absences ${ctxBadge()}</div>
+        ${leaders.length===0 ? `<div style="color:var(--text3);font-size:13px">${_activeSem?.id?'No absences recorded yet.':'Select active semester first.'}</div>` :
+          `<div class="table-wrap"><table>
+            <thead><tr><th>#</th><th>Student</th><th>Section</th><th>Subject</th><th>Absences</th></tr></thead>
+            <tbody>${leaders.slice(0,10).map((l,i)=>`<tr>
+              <td class="text-xs">${i+1}</td>
+              <td><div style="font-weight:600;font-size:12px">${l.full_name}</div><div class="text-xs text-muted">${l.student_no}</div></td>
+              <td><span class="badge badge-blue">${l.section_name}</span></td>
+              <td class="text-xs">${l.subject_code}</td>
+              <td><span class="badge badge-${l.absences>=5?'red':l.absences>=3?'yellow':'gray'}">${l.absences}</span></td>
+            </tr>`).join('')}</tbody>
+          </table></div>`}
+      </div>
+    </div>`;
+}
+
+async function switchActiveSem(semId) {
+  if (!semId) return;
+  try {
+    const r = await api('PUT', `/api/semesters/${semId}/activate`);
+    _activeSem = {id: parseInt(semId), label: r.label, year: r.year, ay_id: r.ay_id};
+    updateSemBadge();
+    toast(`Active: ${r.year} — ${r.label}`, 'success');
+    navigate('dashboard');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+/* ══════════════════════════════════════════════════
+   PAGE: SCHOOL YEARS
+══════════════════════════════════════════════════ */
+async function pgSchoolYears(c) {
+  const ays = await api('GET', '/api/academic-years').catch(()=>[]);
+  document.getElementById('topbar-actions').innerHTML = `<button class="btn-primary btn-sm" onclick="showAddAY()">➕ New Academic Year</button>`;
+
+  if (ays.length === 0) {
+    c.innerHTML = `
+      <div style="max-width:500px;margin:48px auto;text-align:center">
+        <div style="font-size:56px;margin-bottom:16px">🗓️</div>
+        <div style="font-size:22px;font-weight:800;margin-bottom:10px">Get Started</div>
+        <div style="color:var(--text2);margin-bottom:24px">Create your first Academic Year. Semesters (1st, 2nd, Summer) will be automatically added.</div>
+        <button class="btn-primary" onclick="showAddAY()">➕ Create Academic Year</button>
+      </div>`;
+    return;
+  }
+
+  c.innerHTML = `
+    <div class="card" style="padding:12px 16px;margin-bottom:16px;background:var(--accent-dim);border-color:rgba(59,130,246,.3)">
+      <div style="font-size:11px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:.05em">Currently Active</div>
+      <div style="font-size:17px;font-weight:800;margin-top:2px">
+        ${_activeSem?.id ? `${_activeSem.year} — ${_activeSem.label}` : '⚠️ No active semester selected'}
+      </div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px">Click ▶️ Set Active on any semester below to switch context.</div>
+    </div>
+
+    ${ays.map(ay=>`
+      <div style="background:var(--surface);border:1px solid ${ay.semesters?.some(s=>s.id===_activeSem?.id)?'var(--accent)':'var(--border)'};border-radius:14px;margin-bottom:12px;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;background:var(--surface2)">
+          <span style="font-size:18px">🗓️</span>
+          <div style="flex:1">
+            <div style="font-size:17px;font-weight:800;font-family:var(--mono)">${ay.year}</div>
+            <div style="font-size:11px;color:var(--text2)">${(ay.semesters||[]).length} semesters</div>
+          </div>
+          <button class="btn-secondary btn-sm" onclick="showEditAY(${ay.id},'${ay.year}')">✏️</button>
+          <button class="btn-danger btn-sm" onclick="deleteAY(${ay.id})">🗑️</button>
+        </div>
+        <div style="padding:0 18px 14px">
+          ${(ay.semesters||[]).map(sem=>{
+            const isActive = sem.id === _activeSem?.id;
+            return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;margin-top:8px;border-radius:8px;background:${isActive?'rgba(34,197,94,.06)':'var(--surface3)'};border:1px solid ${isActive?'rgba(34,197,94,.4)':'var(--border)'}">
+              <span style="font-size:16px">${isActive?'✅':'📂'}</span>
+              <div style="flex:1">
+                <div style="font-size:13px;font-weight:600">${sem.label}</div>
+              </div>
+              ${isActive
+                ? `<span style="font-size:11px;font-weight:700;color:var(--green)">● ACTIVE</span>`
+                : `<button class="btn-primary btn-sm" onclick="setActiveSem(${sem.id})">▶️ Set Active</button>`}
+              <button class="btn-secondary btn-sm" onclick="navigate('sections')" title="View sections">🏫</button>
+            </div>`;
+          }).join('')}
+          <button class="btn-secondary btn-sm" style="margin-top:8px" onclick="showAddSem(${ay.id})">➕ Add Semester</button>
+        </div>
+      </div>`).join('')}`;
+}
+
+async function setActiveSem(semId) {
+  try {
+    const r = await api('PUT', `/api/semesters/${semId}/activate`);
+    _activeSem = {id: semId, label: r.label, year: r.year, ay_id: r.ay_id};
+    updateSemBadge();
+    toast(`Active: ${r.year} — ${r.label}`, 'success');
+    navigate('schoolyears');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function showAddAY() {
+  showModal(`
+    <div class="modal-header"><div class="modal-title">➕ New Academic Year</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="form-group">
+      <label>Academic Year</label>
+      <input id="ay-year" placeholder="e.g. 2026-2027" onkeydown="if(event.key==='Enter')saveAY()">
+    </div>
+    <div style="font-size:11px;color:var(--text2);background:var(--surface2);border-radius:8px;padding:10px;margin-bottom:12px">
+      💡 Three semesters (1st Semester, 2nd Semester, Summer) will be created automatically.
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveAY()">💾 Create</button>
+    </div>`, 'modal-sm');
+}
+
+async function saveAY() {
+  const year = document.getElementById('ay-year').value.trim();
+  if (!year) { toast('Enter academic year','error'); return; }
+  try {
+    await api('POST', '/api/academic-years', {year});
+    closeModal(); toast('Academic Year created!','success');
+    navigate('schoolyears');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+function showEditAY(id, year) {
+  showModal(`
+    <div class="modal-header"><div class="modal-title">✏️ Edit Academic Year</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="form-group"><label>Year</label><input id="ay-edit-year" value="${year}"></div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveEditAY(${id})">💾 Save</button>
+    </div>`, 'modal-sm');
+}
+async function saveEditAY(id) {
+  const y = document.getElementById('ay-edit-year').value.trim();
+  if (!y) return;
+  // Update via delete+recreate not ideal — for now just toast
+  toast('Edit year coming soon', 'info'); closeModal();
+}
+async function deleteAY(id) {
+  if (!confirm('Delete this Academic Year and ALL its data?')) return;
+  try { await api('DELETE', `/api/academic-years/${id}`); toast('Deleted','info'); navigate('schoolyears'); }
+  catch(e) { toast(e.message,'error'); }
+}
+
+function showAddSem(ayId) {
+  showModal(`
+    <div class="modal-header"><div class="modal-title">➕ Add Semester</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="form-group"><label>Semester Label</label>
+      <input id="sem-label" placeholder="e.g. Midyear, Summer 2, etc.">
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveSem(${ayId})">💾 Add</button>
+    </div>`, 'modal-sm');
+}
+async function saveSem(ayId) {
+  const label = document.getElementById('sem-label').value.trim();
+  if (!label) return;
+  try {
+    await api('POST', '/api/semesters', {ay_id: ayId, label});
+    closeModal(); toast('Semester added!','success'); navigate('schoolyears');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+/* ══════════════════════════════════════════════════
+   PAGE: SECTIONS
+══════════════════════════════════════════════════ */
+async function pgSections(c) {
+  if (sem_guard(c)) return;
+  document.getElementById('topbar-actions').innerHTML = `${ctxBadge()} &nbsp; <button class="btn-primary btn-sm" onclick="showSectionForm()">➕ New Section</button>`;
+  const sections = await api('GET', `/api/sections?sem_id=${_activeSem.id}`).catch(()=>[]);
+  if (sections.length === 0) {
+    c.innerHTML = `<div class="empty-state"><div class="es-icon">🏫</div><div class="es-title">No sections for ${_activeSem.year} — ${_activeSem.label}</div>
+      <p style="margin-bottom:16px">Add sections to this semester.</p>
+      <button class="btn-primary" onclick="showSectionForm()">➕ New Section</button></div>`;
+    return;
+  }
+  c.innerHTML = `<div class="grid-3">${sections.map(sec=>{
+    const slots = sec.slots||[];
+    return `<div class="section-card" onclick="openSection(${sec.id})">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-top:6px">
+        <div><div class="sc-name">${sec.name}</div><div class="sc-subject">${sec.subject_full||sec.subject_code}</div></div>
+        <span class="badge badge-blue" style="font-size:10px">${sec.subject_type==='lec-lab'?'📖🔬':'📖'}</span>
+      </div>
+      <div style="font-size:11px;color:var(--text2);margin-top:6px">${sec.program||'BSIT'} · Year ${sec.year_level}</div>
+      <div style="margin-top:8px">
+        ${slots.map(s=>`<div style="font-size:11px;color:var(--text3);margin-top:3px">${s.slot_type==='lab'?'🔬':'📖'} <strong>${s.day}</strong> ${s.time_start}–${s.time_end} 🏠${s.room||'—'}</div>`).join('')}
+      </div>
+      <div class="sc-stats">
+        <div class="sc-stat"><strong>${sec.student_count||0}</strong>Students</div>
+        <div class="sc-stat"><strong>${slots.length}</strong>Slot${slots.length!==1?'s':''}/wk</div>
+      </div>
+      <div class="flex gap-2 mt-2">
+        <button class="btn-secondary btn-sm" onclick="event.stopPropagation();showSectionForm(${sec.id})">✏️ Edit</button>
+        <button class="btn-danger btn-sm" onclick="event.stopPropagation();deleteSection(${sec.id})">🗑️</button>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function openSection(id) { navigate('students'); window._secFilter = id; }
+
+/* Section Form */
+let _slots = [];
+async function showSectionForm(id=null) {
+  let sec = null;
+  if (id) {
+    const all = await api('GET', `/api/sections?sem_id=${_activeSem?.id||''}`).catch(()=>[]);
+    sec = all.find(s=>s.id===id);
+  }
+  _slots = sec?.slots ? JSON.parse(JSON.stringify(sec.slots)) : [];
+
+  showModal(`
+    <div class="modal-header"><div class="modal-title">${sec?'Edit':'New'} Section</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div style="background:var(--accent-dim);border:1px solid rgba(59,130,246,.3);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:12px">
+      📅 Context: <strong>${_activeSem?.year||'?'} — ${_activeSem?.label||'?'}</strong>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:14px">
+      <button id="sf-tab-basic" class="btn-primary btn-sm" onclick="sfTab('basic')">📋 Basic Info</button>
+      <button id="sf-tab-sched" class="btn-secondary btn-sm" onclick="sfTab('sched')">📅 Schedule</button>
+    </div>
+    <div id="sf-panel-basic">
+      <div class="form-row cols-2">
+        <div class="form-group"><label>Section Name *</label><input id="sf-name" value="${sec?.name||''}" placeholder="e.g. TSM3A"></div>
+        <div class="form-group"><label>Subject Code *</label><input id="sf-subj" value="${sec?.subject_code||''}" placeholder="SAM"></div>
+      </div>
+      <div class="form-group"><label>Subject Full Name</label><input id="sf-sfull" value="${sec?.subject_full||''}" placeholder="System Administration and Maintenance"></div>
+      <div class="form-row cols-3">
+        <div class="form-group"><label>Program</label><input id="sf-prog" value="${sec?.program||'BSIT'}"></div>
+        <div class="form-group"><label>Year Level</label><select id="sf-year">
+          ${[1,2,3,4].map(y=>`<option value="${y}" ${(sec?.year_level||3)==y?'selected':''}>Year ${y}</option>`).join('')}
+        </select></div>
+        <div class="form-group"><label>Subject Type</label><select id="sf-type" onchange="sfTypeChange()">
+          <option value="lec-lab" ${!sec||sec.subject_type==='lec-lab'?'selected':''}>📖🔬 Lec + Lab</option>
+          <option value="lecture" ${sec?.subject_type==='lecture'?'selected':''}>📖 Pure Lecture</option>
+        </select></div>
+      </div>
+      <div class="form-row cols-2">
+        <div class="form-group"><label>Professor</label><input id="sf-prof" value="${sec?.professor||''}"  placeholder="e.g. Mr. Larsen B. Dignos"></div>
+        <div class="form-group"><label>Late Threshold (min)</label><input id="sf-late" type="number" value="${sec?.late_threshold||15}" min="1" max="60"></div>
+      </div>
+    </div>
+    <div id="sf-panel-sched" style="display:none">
+      <div style="background:var(--surface2);border-radius:8px;padding:10px;font-size:11px;color:var(--text2);margin-bottom:10px">
+        💡 <strong>Lec+Lab:</strong> Lecture=2hrs, Lab=3hrs &nbsp;|&nbsp; <strong>Pure Lecture:</strong> 3hrs straight or 2×1.5hrs<br>
+        Enter start time → end time is auto-computed based on type.
+      </div>
+      <div id="sf-slots"></div>
+      <button class="btn-secondary btn-sm" onclick="addSlot()">➕ Add Slot</button>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveSection('${id||''}')">💾 Save</button>
+    </div>`, 'modal-lg');
+  renderSlots();
+}
+
+function sfTab(t) {
+  ['basic','sched'].forEach(x=>{
+    document.getElementById('sf-panel-'+x).style.display=x===t?'block':'none';
+    document.getElementById('sf-tab-'+x).className=`btn-${x===t?'primary':'secondary'} btn-sm`;
+  });
+}
+
+function sfTypeChange() {
+  renderSlots(); // re-render auto end times
+}
+
+function computeEndTime(timeStart, slotType, subjType) {
+  if (!timeStart) return '';
+  const clean = timeStart.trim().toUpperCase();
+  const m = clean.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+  if (!m) return '';
+  let hr = parseInt(m[1]); const mn = parseInt(m[2]); const ap = m[3];
+  if (ap==='PM' && hr!==12) hr+=12;
+  if (ap==='AM' && hr===12) hr=0;
+  let total = hr*60+mn;
+  if (subjType==='lec-lab') total += slotType==='lab' ? 180 : 120;
+  else total += 180; // pure lecture = 3hrs (or 1.5, user can override)
+  const nh=Math.floor(total/60)%24; const nm=total%60;
+  const nap=nh>=12?'PM':'AM'; const fh=nh>12?nh-12:nh===0?12:nh;
+  return `${fh}:${nm.toString().padStart(2,'0')}${nap}`;
+}
+
+function renderSlots() {
+  const el = document.getElementById('sf-slots'); if (!el) return;
+  const DAYS=['MON','TUE','WED','THURS','FRI','SAT'];
+  const subjType = document.getElementById('sf-type')?.value || 'lec-lab';
+  if (_slots.length === 0) {
+    el.innerHTML='<div style="color:var(--text3);font-size:12px;margin-bottom:8px">No slots yet.</div>';
+    return;
+  }
+  el.innerHTML = _slots.map((s,i)=>`
+    <div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:8px;padding:10px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);flex-wrap:wrap">
+      <div style="min-width:90px"><label style="font-size:10px">Day</label>
+        <select onchange="_slots[${i}].day=this.value" style="padding:6px 8px;font-size:12px">
+          ${DAYS.map(d=>`<option value="${d}" ${s.day===d?'selected':''}>${d}</option>`).join('')}
+        </select>
+      </div>
+      <div style="min-width:100px"><label style="font-size:10px">Type</label>
+        <select onchange="_slots[${i}].slot_type=this.value;_slots[${i}].time_end=computeEndTime(_slots[${i}].time_start,this.value,document.getElementById('sf-type').value);renderSlots()" style="padding:6px 8px;font-size:12px">
+          <option value="lecture" ${(!s.slot_type||s.slot_type==='lecture')?'selected':''}>📖 Lecture</option>
+          <option value="lab" ${s.slot_type==='lab'?'selected':''}>🔬 Lab</option>
+        </select>
+      </div>
+      <div style="min-width:90px"><label style="font-size:10px">Start Time</label>
+        <input value="${s.time_start||''}" placeholder="1:00PM" style="padding:6px 8px;font-size:12px" 
+          oninput="_slots[${i}].time_start=this.value;_slots[${i}].time_end=computeEndTime(this.value,_slots[${i}].slot_type||'lecture',document.getElementById('sf-type').value);renderSlots()">
+      </div>
+      <div style="min-width:90px"><label style="font-size:10px">End Time (auto)</label>
+        <input value="${s.time_end||computeEndTime(s.time_start,s.slot_type||'lecture',subjType)}" placeholder="3:00PM" style="padding:6px 8px;font-size:12px;background:var(--surface3)"
+          oninput="_slots[${i}].time_end=this.value">
+      </div>
+      <div style="min-width:80px"><label style="font-size:10px">Room</label>
+        <input value="${s.room||''}" placeholder="C414" style="padding:6px 8px;font-size:12px" oninput="_slots[${i}].room=this.value">
+      </div>
+      <button class="btn-danger btn-sm btn-icon" onclick="_slots.splice(${i},1);renderSlots()" style="margin-bottom:2px" title="Remove">✕</button>
+    </div>`).join('');
+}
+
+function addSlot() {
+  const subjType = document.getElementById('sf-type')?.value||'lec-lab';
+  const type = _slots.length===0 ? 'lecture' : subjType==='lec-lab' ? 'lab' : 'lecture';
+  _slots.push({day:'MON', slot_type:type, time_start:'', time_end:'', room:''});
+  renderSlots();
+}
+
+async function saveSection(id) {
+  if (!_activeSem?.id) { toast('No active semester!','error'); return; }
+  const name = document.getElementById('sf-name').value.trim();
+  if (!name) { toast('Section name required','error'); return; }
+  const data = {
+    sem_id: _activeSem.id,
+    name,
+    subject_code: document.getElementById('sf-subj').value.trim(),
+    subject_full: document.getElementById('sf-sfull').value.trim(),
+    program: document.getElementById('sf-prog').value.trim(),
+    year_level: parseInt(document.getElementById('sf-year').value),
+    subject_type: document.getElementById('sf-type').value,
+    professor: document.getElementById('sf-prof').value.trim(),
+    late_threshold: parseInt(document.getElementById('sf-late').value)||15,
+    slots: _slots,
+  };
+  try {
+    if (id) await api('PUT', `/api/sections/${id}`, data);
+    else await api('POST', '/api/sections', data);
+    closeModal(); toast('Section saved!','success'); navigate('sections');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function deleteSection(id) {
+  if (!confirm('Delete this section and ALL its data?')) return;
+  try { await api('DELETE', `/api/sections/${id}`); toast('Deleted','info'); navigate('sections'); }
+  catch(e) { toast(e.message,'error'); }
+}
+
+/* ══════════════════════════════════════════════════
+   PAGE: STUDENTS
+══════════════════════════════════════════════════ */
+let _studSearch='', _studSecId='';
+async function pgStudents(c) {
+  if (sem_guard(c)) return;
+  const sections = await api('GET', `/api/sections?sem_id=${_activeSem.id}`).catch(()=>[]);
+  if (window._secFilter) { _studSecId=window._secFilter; window._secFilter=null; }
+
+  document.getElementById('topbar-actions').innerHTML = `
+    ${ctxBadge()}
+    <select id="stud-sec-sel" style="width:180px" onchange="_studSecId=this.value;loadStudents()">
+      <option value="">All Sections</option>
+      ${sections.map(s=>`<option value="${s.id}" ${_studSecId==s.id?'selected':''}>${s.name} — ${s.subject_code}</option>`).join('')}
+    </select>
+    <button class="btn-primary btn-sm" onclick="showAddStudent()">➕ Add Student</button>
+    <button class="btn-secondary btn-sm" onclick="showImportStudents()">📥 Import</button>`;
+
+  c.innerHTML = `
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <div class="search-wrap" style="flex:1;max-width:320px">
+        <input id="stud-search" placeholder="Search name or student number…" oninput="_studSearch=this.value;loadStudents()">
+      </div>
+      <span id="stud-count" class="text-sm text-muted" style="align-self:center"></span>
+    </div>
+    <div id="stud-table"></div>`;
+
+  loadStudents();
+}
+
+async function loadStudents() {
+  const area = document.getElementById('stud-table'); if (!area) return;
+  area.innerHTML = '<div style="color:var(--text3);padding:20px;text-align:center">⏳ Loading…</div>';
+  let url = `/api/students?sem_id=${_activeSem?.id||''}`;
+  if (_studSecId) url = `/api/students?section_id=${_studSecId}`;
+  let rows = await api('GET', url).catch(()=>[]);
+  if (_studSearch) { const q=_studSearch.toLowerCase(); rows=rows.filter(r=>r.full_name.toLowerCase().includes(q)||r.student_no.includes(q)); }
+  const cnt = document.getElementById('stud-count'); if(cnt) cnt.textContent=`${rows.length} student${rows.length!==1?'s':''}`;
+  if (rows.length===0) { area.innerHTML='<div class="empty-state"><div class="es-icon">👥</div><div class="es-title">No students found</div></div>'; return; }
+  area.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr><th>#</th><th>Student No.</th><th>Full Name</th><th>Section</th><th>Gender</th><th>Year</th><th>RFID</th><th>Actions</th></tr></thead>
+    <tbody>${rows.map((st,i)=>`<tr>
+      <td>${i+1}</td>
+      <td class="text-mono text-xs">${st.student_no}</td>
+      <td style="font-weight:600">${st.full_name}</td>
+      <td><span class="badge badge-blue">${st.section_name||'—'}</span></td>
+      <td>${st.gender==='M'?'♂️':'♀️'} ${st.gender==='M'?'M':'F'}</td>
+      <td class="text-xs">${st.year_level}</td>
+      <td>${st.uid?`<span class="badge badge-green">📡 Registered</span>`:`<span class="badge badge-gray">—</span>`}</td>
+      <td><div class="flex gap-2">
+        <button class="btn-secondary btn-sm btn-icon" onclick="showEditStudent(${st.id},'${st.full_name.replace(/'/g,'&apos;')}','${st.gender}','${st.year_level}',${st.section_id})" title="Edit">✏️</button>
+        <button class="btn-danger btn-sm btn-icon" onclick="deleteStudent(${st.id})" title="Delete">🗑️</button>
+      </div></td>
+    </tr>`).join('')}</tbody></table></div>`;
+}
+
+async function showAddStudent() {
+  if (!_activeSem?.id) { toast('Set active semester first','error'); return; }
+  const sections = await api('GET', `/api/sections?sem_id=${_activeSem.id}`).catch(()=>[]);
+  if (!sections.length) { toast('No sections in active semester. Create sections first.','error'); return; }
+  showModal(`
+    <div class="modal-header"><div class="modal-title">➕ Add Student</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div style="background:var(--accent-dim);border:1px solid rgba(59,130,246,.3);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px">
+      📅 Adding to: <strong>${_activeSem.year} — ${_activeSem.label}</strong>
+    </div>
+    <div class="form-row cols-2">
+      <div class="form-group"><label>Student Number *</label><input id="as-no" placeholder="2023300001"></div>
+      <div class="form-group"><label>Section *</label>
+        <select id="as-sec">${sections.map(s=>`<option value="${s.id}" ${_studSecId==s.id?'selected':''}>${s.name} — ${s.subject_code}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="form-group"><label>Full Name (LASTNAME, Firstname MI.) *</label><input id="as-name" placeholder="DELA CRUZ, Juan Santos"></div>
+    <div class="form-row cols-2">
+      <div class="form-group"><label>Gender</label><select id="as-gender"><option value="M">Male</option><option value="F">Female</option></select></div>
+      <div class="form-group"><label>Year Level</label><select id="as-yr"><option>1st Year</option><option>2nd Year</option><option selected>3rd Year</option><option>4th Year</option></select></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveStudent()">💾 Save</button>
+    </div>`, 'modal-md');
+}
+
+async function saveStudent() {
+  const no=document.getElementById('as-no').value.trim(), name=document.getElementById('as-name').value.trim(),
+        sec=document.getElementById('as-sec').value, g=document.getElementById('as-gender').value,
+        yr=document.getElementById('as-yr').value;
+  if(!no||!name||!sec){toast('All required fields must be filled','error');return;}
+  try {
+    await api('POST','/api/students',{student_no:no,full_name:name,section_id:parseInt(sec),gender:g,year_level:yr});
+    closeModal(); toast('Student added!','success'); loadStudents();
+  } catch(e){toast(e.message,'error');}
+}
+
+function showEditStudent(id,name,gender,yr,secId) {
+  showModal(`
+    <div class="modal-header"><div class="modal-title">✏️ Edit Student</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="form-group"><label>Full Name</label><input id="es-name" value="${name}"></div>
+    <div class="form-row cols-2">
+      <div class="form-group"><label>Gender</label><select id="es-g"><option value="M" ${gender==='M'?'selected':''}>Male</option><option value="F" ${gender==='F'?'selected':''}>Female</option></select></div>
+      <div class="form-group"><label>Year Level</label><select id="es-yr">
+        ${['1st Year','2nd Year','3rd Year','4th Year'].map(y=>`<option ${yr===y?'selected':''}>${y}</option>`).join('')}
+      </select></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="updateStudent(${id},${secId})">💾 Save</button>
+    </div>`, 'modal-md');
+}
+async function updateStudent(id,secId) {
+  try {
+    await api('PUT',`/api/students/${id}`,{full_name:document.getElementById('es-name').value.trim(),gender:document.getElementById('es-g').value,year_level:document.getElementById('es-yr').value,section_id:secId});
+    closeModal(); toast('Updated!','success'); loadStudents();
+  } catch(e){toast(e.message,'error');}
+}
+async function deleteStudent(id) {
+  if(!confirm('Delete this student?'))return;
+  try{await api('DELETE',`/api/students/${id}`);toast('Deleted','info');loadStudents();}
+  catch(e){toast(e.message,'error');}
+}
+
+function showImportStudents() {
+  showModal(`
+    <div class="modal-header"><div class="modal-title">📥 Import Students from Excel</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div style="background:var(--accent-dim);border:1px solid rgba(59,130,246,.3);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px">
+      📅 Importing to: <strong>${_activeSem?.year||'?'} — ${_activeSem?.label||'?'}</strong>
+    </div>
+    <div class="form-group"><label>Section *</label>
+      <select id="imp-sec"></select>
+    </div>
+    <div class="form-group"><label>Excel / XLS File</label>
+      <input type="file" id="imp-file" accept=".xlsx,.xls,.csv" style="padding:8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;width:100%">
+    </div>
+    <div id="imp-preview" style="margin-top:10px;font-size:12px;color:var(--text2)">
+      💡 Supports TSU enrollment format. Columns needed: <strong>Student No.</strong> and <strong>Full Name</strong>. Gender and Year Level are auto-detected if present.
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="doImport()">📥 Import</button>
+    </div>`, 'modal-lg');
+  api('GET',`/api/sections?sem_id=${_activeSem?.id}`).then(secs=>{
+    const el=document.getElementById('imp-sec');
+    if(el) el.innerHTML=secs.map(s=>`<option value="${s.id}" ${_studSecId==s.id?'selected':''}>${s.name} — ${s.subject_code}</option>`).join('');
+  });
+}
+
+async function doImport() {
+  const secId = document.getElementById('imp-sec').value;
+  const fileEl = document.getElementById('imp-file');
+  if (!secId) { toast('Select a section','error'); return; }
+  if (!fileEl.files.length) { toast('Select an Excel file','error'); return; }
+
+  const file = fileEl.files[0];
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  // Read file as ArrayBuffer then parse with SheetJS
+  const buf = await file.arrayBuffer();
+  let rows = [];
+  try {
+    // Load SheetJS dynamically
+    if (!window.XLSX) {
+      await new Promise((res,rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+        s.onload = res; s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+    const wb = XLSX.read(buf, {type:'array'});
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const data = XLSX.utils.sheet_to_json(ws, {defval:''});
+
+    // Auto-detect columns (case-insensitive, flexible)
+    rows = data.map(r => {
+      // Try to find student number column
+      const keys = Object.keys(r);
+      const noKey  = keys.find(k => /student.?no|stud.*no|student.*num|no\./i.test(k)) || keys[1];
+      const nameKey= keys.find(k => /full.?name|name/i.test(k)) || keys[2];
+      const genKey = keys.find(k => /gender|sex/i.test(k));
+      const yrKey  = keys.find(k => /year.?level|yr.*level|year/i.test(k));
+
+      const sno  = String(r[noKey]||'').trim();
+      const name = String(r[nameKey]||'').trim();
+      const gen  = genKey ? String(r[genKey]||'M').trim().toUpperCase()[0] : 'M';
+      const yr   = yrKey  ? String(r[yrKey]||'3rd Year').trim() : '3rd Year';
+      return { student_no: sno, full_name: name, gender: gen==='F'?'F':'M', year_level: yr };
+    }).filter(r => r.student_no && r.full_name && r.student_no !== '#');
+
+    if (!rows.length) { toast('No valid student data found in file','error'); return; }
+
+    // Show preview
+    const prev = document.getElementById('imp-preview');
+    if(prev) prev.innerHTML = `<div style="padding:8px;background:var(--surface2);border-radius:8px">
+      ✅ Found <strong>${rows.length} students</strong> ready to import.<br>
+      <span style="color:var(--text3)">Preview: ${rows.slice(0,3).map(r=>r.full_name).join(', ')}${rows.length>3?'…':''}</span>
+    </div>`;
+
+  } catch(e) {
+    toast('Error reading file: ' + e.message, 'error');
+    return;
+  }
+
+  try {
+    const r = await api('POST','/api/students/import',{section_id:parseInt(secId),rows});
+    closeModal();
+    toast(`✅ Imported: ${r.added} added, ${r.skipped} skipped`,'success');
+    loadStudents();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+/* ══════════════════════════════════════════════════
+   PAGE: RFID
+══════════════════════════════════════════════════ */
+async function pgRFID(c) {
+  if (sem_guard(c)) return;
+  document.getElementById('topbar-actions').innerHTML = `
+    ${ctxBadge()}
+    <button class="btn-primary btn-sm" onclick="openRegisterRFID()">➕ Register Card</button>`;
+
+  const tags = await api('GET', `/api/rfid?sem_id=${_activeSem.id}`).catch(()=>[]);
+
+  c.innerHTML = `
+    <div class="card mb-3" style="padding:12px 16px;background:var(--accent-dim);border-color:rgba(59,130,246,.3)">
+      <div style="font-size:13px;font-weight:700;margin-bottom:4px">📡 RFID / NFC Tags</div>
+      <div style="font-size:12px;color:var(--text2)">
+        Register student RFID cards via NFC tap or USB reader. Students can also self-register on first login.
+      </div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th>#</th><th>Full Name</th><th>Student No.</th>
+        <th>Section</th><th>Card UID</th><th>Registered</th><th>By</th><th>Action</th>
+      </tr></thead>
+      <tbody>${tags.length === 0
+        ? `<tr><td colspan="8" style="text-align:center;padding:32px;color:var(--text3)">No cards registered yet for this semester.</td></tr>`
+        : tags.map((t,i) => `<tr>
+            <td class="text-xs">${i+1}</td>
+            <td style="font-weight:600">${t.full_name}</td>
+            <td class="text-mono text-xs">${t.student_no}</td>
+            <td><span class="badge badge-blue">${t.section_name||'—'}</span></td>
+            <td class="text-mono" style="color:var(--accent);font-size:12px">${t.uid}</td>
+            <td class="text-xs text-muted">${fmtDate(t.registered_at)}</td>
+            <td>${t.self_registered
+              ? '<span class="badge badge-green">Self</span>'
+              : '<span class="badge badge-gray">Admin</span>'}</td>
+            <td><button class="btn-danger btn-sm btn-icon" onclick="deleteTag(${t.id})" title="Remove">🗑️</button></td>
+          </tr>`).join('')
+      }</tbody>
+    </table></div>`;
+}
+
+async function deleteTag(id) {
+  if (!confirm('Remove this RFID card? The student will need to re-register.')) return;
+  try {
+    await api('DELETE', `/api/rfid/${id}`);
+    toast('Card removed', 'info');
+    navigate('rfid');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+/* ── ADMIN RFID REGISTRATION ─────────────────────────── */
+let _rrStudentId  = null;   // selected student id
+let _rrScannedUID = null;   // scanned UID
+let _rrNFCReader  = null;   // active NDEFReader
+let _rrNFCOn      = false;  // NFC scanning active
+let _rrUSBBuf     = '';     // USB reader buffer
+let _rrUSBTimer   = null;
+let _rrKBListener = null;
+
+async function openRegisterRFID() {
+  _rrStudentId  = null;
+  _rrScannedUID = null;
+  _rrNFCOn      = false;
+
+  showModal(`
+    <div class="modal-header">
+      <div class="modal-title">📡 Register Student RFID Card</div>
+      <button class="modal-close" onclick="closeRegisterRFID()">✕</button>
+    </div>
+
+    <!-- STEP 1: Select Student -->
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Step 1 — Select Student</div>
+      <select id="rr-student-sel" style="width:100%;font-size:13px;padding:10px 12px" onchange="rrSelectStudent(this)">
+        <option value="">⏳ Loading students…</option>
+      </select>
+      <div id="rr-student-info" style="display:none;margin-top:8px;padding:8px 12px;background:var(--surface2);border-radius:8px;font-size:12px"></div>
+    </div>
+
+    <!-- STEP 2: Scan Card -->
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Step 2 — Scan RFID Card</div>
+
+      <!-- Scan area -->
+      <div id="rr-scan-area" style="border:2px dashed var(--border2);border-radius:12px;padding:24px;text-align:center;background:var(--surface2);cursor:pointer" onclick="rrStartScan()">
+        <div style="font-size:40px;margin-bottom:8px">📡</div>
+        <div id="rr-scan-label" style="font-size:14px;font-weight:700;color:var(--text2)">Tap to start scanning</div>
+        <div id="rr-scan-sub" style="font-size:11px;color:var(--text3);margin-top:4px">NFC tap or USB RFID reader</div>
+      </div>
+
+      <!-- Scanned UID display (read-only) -->
+      <div id="rr-uid-display" style="display:none;margin-top:10px;padding:12px 16px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.3);border-radius:8px;text-align:center">
+        <div style="font-size:11px;color:var(--green);margin-bottom:4px">✅ Card Detected</div>
+        <div id="rr-uid-val" style="font-family:var(--mono);font-size:18px;font-weight:800;color:var(--green);letter-spacing:.08em"></div>
+        <button class="btn-secondary btn-sm" style="margin-top:8px" onclick="rrClearScan()">🔄 Scan Again</button>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeRegisterRFID()">Cancel</button>
+      <button id="rr-save-btn" class="btn-primary" onclick="rrSave()" disabled style="opacity:.5;cursor:not-allowed">
+        💾 Register Card
+      </button>
+    </div>`, 'modal-md');
+
+  // Load students without cards
+  try {
+    const students = await api('GET', `/api/students?sem_id=${_activeSem?.id}`);
+    const noCard = students.filter(s => !s.uid);
+    const sel = document.getElementById('rr-student-sel');
+    if (!sel) return;
+    if (noCard.length === 0) {
+      sel.innerHTML = '<option value="">All students already have cards registered</option>';
+    } else {
+      sel.innerHTML =
+        `<option value="">— Select student (${noCard.length} unregistered) —</option>` +
+        noCard.map(s =>
+          `<option value="${s.id}" data-name="${s.full_name}" data-no="${s.student_no}" data-sec="${s.section_name||'—'}">
+            ${s.full_name} · ${s.student_no}
+          </option>`
+        ).join('');
+    }
+  } catch(e) {
+    const sel = document.getElementById('rr-student-sel');
+    if (sel) sel.innerHTML = `<option value="">❌ Error: ${e.message}</option>`;
+  }
+
+  // USB RFID keyboard listener
+  _rrKBListener = (e) => {
+    // Only active when modal is open and scan area is active
+    if (!_rrNFCOn) return;
+    if (document.getElementById('modal-overlay').classList.contains('hidden')) return;
+    const t = e.target;
+    if (t.tagName === 'SELECT' || t.tagName === 'BUTTON') return;
+    if (e.key === 'Enter') {
+      if (_rrUSBBuf.length >= 4) rrReceiveUID(_rrUSBBuf.toUpperCase());
+      _rrUSBBuf = '';
+    } else if (e.key.length === 1) {
+      _rrUSBBuf += e.key;
+      clearTimeout(_rrUSBTimer);
+      _rrUSBTimer = setTimeout(() => { _rrUSBBuf = ''; }, 200);
+    }
+  };
+  document.addEventListener('keydown', _rrKBListener);
+}
+
+function rrSelectStudent(sel) {
+  _rrStudentId = sel.value ? parseInt(sel.value) : null;
+  const info = document.getElementById('rr-student-info');
+  if (!info) return;
+  if (!sel.value) { info.style.display = 'none'; return; }
+  const opt = sel.options[sel.selectedIndex];
+  info.style.display = 'block';
+  info.innerHTML = `👤 <strong>${opt.dataset.name}</strong> &nbsp;·&nbsp; <span class="text-mono">${opt.dataset.no}</span> &nbsp;·&nbsp; ${opt.dataset.sec}`;
+  rrCheckReady();
+}
+
+async function rrStartScan() {
+  if (_rrNFCOn) return; // already scanning
+  _rrNFCOn = true;
+  _rrUSBBuf = '';
+
+  const area  = document.getElementById('rr-scan-area');
+  const label = document.getElementById('rr-scan-label');
+  const sub   = document.getElementById('rr-scan-sub');
+
+  if (area)  { area.style.borderColor = 'var(--accent)'; area.style.background = 'var(--accent-dim)'; }
+  if (label) label.textContent = '📡 Waiting for tap…';
+  if (sub)   sub.textContent = 'Hold RFID/NFC card near device or scan with USB reader';
+
+  // Try Web NFC
+  if ('NDEFReader' in window) {
+    try {
+      _rrNFCReader = new NDEFReader();
+      await _rrNFCReader.scan();
+      _rrNFCReader.onreading = (e) => {
+        const uid = e.serialNumber.replace(/:/g, '').toUpperCase();
+        rrReceiveUID(uid);
+      };
+      if (sub) sub.textContent = '📱 NFC active — tap card now';
+    } catch(e) {
+      if (sub) sub.textContent = 'NFC error: ' + e.message + ' — use USB reader';
+    }
+  } else {
+    if (sub) sub.textContent = 'NFC not available — use USB RFID reader';
+  }
+}
+
+function rrReceiveUID(uid) {
+  if (!uid || uid.length < 4) return;
+  _rrNFCOn = false;
+  _rrScannedUID = uid;
+
+  // Hide scan area, show UID
+  const area = document.getElementById('rr-scan-area');
+  const disp = document.getElementById('rr-uid-display');
+  const val  = document.getElementById('rr-uid-val');
+  if (area) area.style.display = 'none';
+  if (disp) disp.style.display = 'block';
+  if (val)  val.textContent = uid;
+
+  // Stop NFC
+  _rrNFCReader = null;
+  rrCheckReady();
+}
+
+function rrClearScan() {
+  _rrScannedUID = null;
+  _rrNFCOn = false;
+  _rrUSBBuf = '';
+
+  const area  = document.getElementById('rr-scan-area');
+  const disp  = document.getElementById('rr-uid-display');
+  const label = document.getElementById('rr-scan-label');
+  const sub   = document.getElementById('rr-scan-sub');
+  if (area)  { area.style.display = 'block'; area.style.borderColor = 'var(--border2)'; area.style.background = 'var(--surface2)'; }
+  if (disp)  disp.style.display = 'none';
+  if (label) label.textContent = 'Tap to start scanning';
+  if (sub)   sub.textContent = 'NFC tap or USB RFID reader';
+
+  rrCheckReady();
+}
+
+function rrCheckReady() {
+  const btn = document.getElementById('rr-save-btn');
+  if (!btn) return;
+  const ready = _rrStudentId && _rrScannedUID;
+  btn.disabled = !ready;
+  btn.style.opacity = ready ? '1' : '.5';
+  btn.style.cursor  = ready ? 'pointer' : 'not-allowed';
+}
+
+async function rrSave() {
+  if (!_rrStudentId) { toast('Select a student first', 'error'); return; }
+  if (!_rrScannedUID) { toast('Scan the RFID card first', 'error'); return; }
+
+  const btn = document.getElementById('rr-save-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving…'; }
+
+  try {
+    await api('POST', '/api/rfid', { uid: _rrScannedUID, student_id: _rrStudentId });
+    closeRegisterRFID();
+    toast('✅ RFID card registered successfully!', 'success');
+    navigate('rfid');
+  } catch(e) {
+    toast('❌ ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Register Card'; }
+  }
+}
+
+function closeRegisterRFID() {
+  _rrNFCOn = false;
+  _rrNFCReader = null;
+  _rrStudentId = null;
+  _rrScannedUID = null;
+  _rrUSBBuf = '';
+  if (_rrKBListener) {
+    document.removeEventListener('keydown', _rrKBListener);
+    _rrKBListener = null;
+  }
+  closeModal();
+}
+
+/* ══════════════════════════════════════════════════
+   PAGE: ATTENDANCE
+══════════════════════════════════════════════════ */
+let _attSession=null, _attSectionId=null, _attTimer=null;
+let _attRFIDBuf='', _attRFIDTimer=null;
+
+async function pgAttendance(c) {
+  if (sem_guard(c)) return;
+  const sections = await api('GET', `/api/sections?sem_id=${_activeSem.id}`).catch(()=>[]);
+
+  // topbar
+  const topActions = document.getElementById('topbar-actions');
+  topActions.innerHTML = `${ctxBadge()} <select id="att-sec-sel" style="width:200px" onchange="loadAttPage(this.value)">
+    <option value="">Select Section…</option>
+    ${sections.map(s=>`<option value="${s.id}" ${_attSectionId==s.id?'selected':''}>${s.name} — ${s.subject_code}</option>`).join('')}
+  </select>`;
+
+  if (!_attSectionId && sections.length>0) _attSectionId = sections[0].id;
+  document.querySelector('#att-sec-sel').value = _attSectionId||'';
+  loadAttPage(_attSectionId);
+}
+
+async function loadAttPage(secId) {
+  if (!secId) return;
+  _attSectionId = secId;
+  document.querySelector('#att-sec-sel')?.value && (document.querySelector('#att-sec-sel').value=secId);
+  const c = document.getElementById('content');
+  const [sec_arr, sessions] = await Promise.all([
+    api('GET', `/api/sections?sem_id=${_activeSem.id}`).catch(()=>[]),
+    api('GET', `/api/sessions?section_id=${secId}`).catch(()=>[]),
+  ]);
+  const sec = sec_arr.find(s=>s.id==secId);
+  if (!sec) return;
+
+  // Check if there's an open session
+  const openSess = sessions.find(s=>s.is_open);
+
+  // Today's slots
+  const DAYS=['SUN','MON','TUE','WED','THURS','FRI','SAT'];
+  const today = DAYS[new Date().getDay()];
+  const todaySlots = (sec.slots||[]).filter(s=>s.day===today);
+
+  c.innerHTML = `
+    <!-- Active Session Banner -->
+    ${openSess ? `
+    <div class="session-active">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="flex:1">
+          <div style="font-weight:800;font-size:14px;color:var(--green)">● Session Active — ${sec.name} ${openSess.slot_type==='lab'?'🔬 Lab':'📖 Lecture'}</div>
+          <div style="font-size:12px;color:var(--text2)">${openSess.sched_day} · ${openSess.time_start} · ${openSess.term?.toUpperCase()} Term</div>
+        </div>
+        <div class="session-timer" id="att-timer">00:00</div>
+        <button class="btn-danger btn-sm" onclick="closeSession(${openSess.id})">⏹ Close Session</button>
+      </div>
+      <!-- RFID scan area -->
+      <div style="margin-top:10px;padding:10px;background:rgba(34,197,94,.08);border-radius:8px;font-size:12px;color:var(--text2)">
+        📡 RFID auto-scanning active. USB reader will record attendance automatically.
+        ${('NDEFReader' in window)?`<button class="btn-success btn-sm" onclick="startAttNFC(${openSess.id})" style="margin-left:8px">📱 NFC Scan</button>`:''}
+      </div>
+    </div>` : ''}
+
+    <!-- Today's Classes -->
+    <div class="card mb-3">
+      <div class="card-title">📅 Today's Classes (${today})</div>
+      ${todaySlots.length===0 ? `<div style="color:var(--text3);font-size:13px">No scheduled classes today for ${sec.name}.</div>` :
+        todaySlots.map(slot=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px">
+          <div style="flex:1">
+            <div style="font-weight:700">${slot.slot_type==='lab'?'🔬 Lab':'📖 Lecture'} · ${slot.day} ${slot.time_start}–${slot.time_end}</div>
+            <div style="font-size:11px;color:var(--text2)">Room: ${slot.room||'—'}</div>
+          </div>
+          ${!openSess?`<button class="btn-success btn-sm" onclick="startSessionModal(${sec.id},${slot.id},'${slot.day}','${slot.slot_type}','${slot.time_start}','${slot.time_end}','${slot.room||''}')">▶️ Start</button>`:
+            `<span class="badge badge-green">● Session in progress</span>`}
+        </div>`).join('')}
+      ${!openSess && todaySlots.length===0?`<button class="btn-secondary btn-sm" onclick="startSessionModal(${sec.id},null,'${today}','lecture','','','')">▶️ Start Manual Session</button>`:''}
+    </div>
+
+    <!-- Session Records -->
+    <div class="card">
+      <div class="card-title">📋 Session Records</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Day</th><th>Type</th><th>Term</th><th>Time</th><th>P</th><th>L</th><th>E</th><th>A</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>${sessions.length===0?`<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--text3)">No sessions yet.</td></tr>`:
+          sessions.map(s=>{
+            const cnt=s.counts||{};
+            return `<tr data-sess-id="${s.id}">
+              <td class="text-xs">${fmtDate(s.start_ts)}</td>
+              <td class="text-xs">${s.sched_day||'—'}</td>
+              <td>${s.slot_type==='lab'?'🔬':'📖'}</td>
+              <td><span class="badge badge-${s.term==='mt'?'blue':'green'}">${s.term?.toUpperCase()}</span></td>
+              <td class="text-xs">${s.time_start||'—'}</td>
+              <td style="color:var(--green)" data-count="present">${cnt.present||0}</td>
+              <td style="color:var(--yellow)" data-count="late">${cnt.late||0}</td>
+              <td style="color:var(--accent)" data-count="excuse">${cnt.excuse||0}</td>
+              <td style="color:var(--red)" data-count="absent">${cnt.absent||0}</td>
+              <td>${s.is_open?'<span class="badge badge-green">● Open</span>':'<span class="badge badge-gray">Closed</span>'}</td>
+              <td><div class="flex gap-2">
+                <button class="btn-secondary btn-sm btn-icon" onclick="viewSession(${s.id},'${sec.name}')" title="View/Edit">👁️</button>
+                <button class="btn-danger btn-sm btn-icon" onclick="deleteAttSession(${s.id})" title="Delete">🗑️</button>
+              </div></td>
+            </tr>`;
+          }).join('')}</tbody>
+      </table></div>
+    </div>`;
+
+  // Start timer if open session
+  if (openSess) { _attSession = openSess; startAttTimer(openSess.start_ts); startAttKeyboard(openSess.id); }
+}
+
+function startAttTimer(startTs) {
+  clearInterval(_attTimer);
+  _attTimer = setInterval(()=>{
+    const el=document.getElementById('att-timer'); if(!el){clearInterval(_attTimer);return;}
+    const diff=Math.floor((Date.now()-new Date(startTs).getTime())/1000);
+    const h=Math.floor(diff/3600),m=Math.floor((diff%3600)/60),s=diff%60;
+    el.textContent=(h?`${h}:`:'')+(h?m.toString().padStart(2,'0'):m)+':'+s.toString().padStart(2,'0');
+  },1000);
+}
+
+function startAttKeyboard(sessId) {
+  if (window._attKBListener) document.removeEventListener('keydown', window._attKBListener);
+  window._attKBListener = (e)=>{
+    if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
+    if(e.key==='Enter'){
+      if(_attRFIDBuf.length>=4){processRFIDScan(_attRFIDBuf, sessId);}
+      _attRFIDBuf='';
+    } else if(e.key.length===1){_attRFIDBuf+=e.key;clearTimeout(_attRFIDTimer);_attRFIDTimer=setTimeout(()=>_attRFIDBuf='',150);}
+  };
+  document.addEventListener('keydown', window._attKBListener);
+}
+
+async function processRFIDScan(uid, sessId) {
+  try {
+    const tag = await api('GET',`/api/rfid/lookup/${uid.toUpperCase()}`);
+    // Check lateness
+    const sess = await api('GET',`/api/sessions?section_id=${_attSectionId}`).then(s=>s.find(x=>x.id===sessId));
+    let status = 'present';
+    if (sess?.time_start) {
+      const sec_data = await api('GET',`/api/sections?sem_id=${_activeSem.id}`).then(s=>s.find(x=>x.id==_attSectionId));
+      const threshold = sec_data?.late_threshold||15;
+      const now = new Date();
+      const [h,mp,ap] = sess.time_start.toUpperCase().match(/(\d+):(\d+)(AM|PM)/)?.slice(1)||[];
+      if(h){let sh=parseInt(h);if(ap==='PM'&&sh!==12)sh+=12;if(ap==='AM'&&sh===12)sh=0;const schMin=sh*60+parseInt(mp);const nowMin=now.getHours()*60+now.getMinutes();if(nowMin>schMin+threshold)status='late';}
+    }
+    await api('POST','/api/attendance',{session_id:sessId,student_id:tag.student_id,status});
+    toast(`✅ ${status==='late'?'⏰ LATE':'Present'}: ${tag.full_name}`,'success');
+  } catch(e) { toast('❌ Card not found: '+uid,'error'); }
+}
+
+let _attNFCActive = false;
+let _attNFCLastUID = '';
+let _attNFCCooldown = false;
+
+async function startAttNFC(sessId) {
+  if (_attNFCActive) { stopAttNFC(); return; }
+  try {
+    _attNFCActive = true;
+    const btn = document.querySelector('[onclick*="startAttNFC"]');
+    if (btn) btn.textContent = '⏹ Stop NFC';
+
+    const reader = new NDEFReader();
+    window._attNFCReader = reader;
+    await reader.scan();
+    toast('📡 NFC active — tap card to record attendance','info');
+
+    reader.onreading = async(e) => {
+      if (!_attNFCActive) return;
+      const uid = e.serialNumber.replace(/:/g,'').toUpperCase();
+      // Cooldown: ignore same card within 3 seconds
+      if (_attNFCCooldown && uid === _attNFCLastUID) return;
+      _attNFCLastUID = uid;
+      _attNFCCooldown = true;
+      setTimeout(() => { _attNFCCooldown = false; }, 3000);
+
+      await processRFIDScan(uid, sessId);
+      // Real-time refresh of session records
+      setTimeout(() => refreshSessionCounts(sessId), 500);
+    };
+  } catch(e) {
+    _attNFCActive = false;
+    toast('NFC error: '+e.message,'error');
+  }
+}
+
+function stopAttNFC() {
+  _attNFCActive = false;
+  _attNFCCooldown = false;
+  const btn = document.querySelector('[onclick*="startAttNFC"]');
+  if (btn) btn.textContent = '📱 NFC Scan';
+  toast('NFC scanning stopped','info');
+}
+
+async function refreshSessionCounts(sessId) {
+  try {
+    const sessions = await api('GET', `/api/sessions?section_id=${_attSectionId}`);
+    const sess = sessions.find(s => s.id === sessId);
+    if (!sess) return;
+    const cnt = sess.counts || {};
+    // Update the counts in the table row without full reload
+    const row = document.querySelector(`[data-sess-id="${sessId}"]`);
+    if (row) {
+      const cells = row.querySelectorAll('[data-count]');
+      cells.forEach(cell => {
+        const type = cell.dataset.count;
+        cell.textContent = cnt[type] || 0;
+      });
+    } else {
+      // Full reload if row not found
+      loadAttPage(_attSectionId);
+    }
+  } catch(e) {}
+}
+
+function startSessionModal(secId, slotId, day, type, ts, te, room) {
+  showModal(`
+    <div class="modal-header"><div class="modal-title">▶️ Start Attendance Session</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="form-row cols-2">
+      <div class="form-group"><label>Term</label><select id="ss-term"><option value="mt">Midterm</option><option value="ft">Final Term</option></select></div>
+      <div class="form-group"><label>Slot Type</label><select id="ss-type"><option value="lecture" ${type!=='lab'?'selected':''}>📖 Lecture</option><option value="lab" ${type==='lab'?'selected':''}>🔬 Lab</option></select></div>
+    </div>
+    <div class="form-row cols-2">
+      <div class="form-group"><label>Day</label><input id="ss-day" value="${day}"></div>
+      <div class="form-group"><label>Start Time</label><input id="ss-ts" value="${ts}" placeholder="3:00PM"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="doStartSession(${secId},${slotId||null})">▶️ Start Session</button>
+    </div>`, 'modal-md');
+}
+
+async function doStartSession(secId, slotId) {
+  const term=document.getElementById('ss-term').value, type=document.getElementById('ss-type').value,
+        day=document.getElementById('ss-day').value, ts=document.getElementById('ss-ts').value;
+  try {
+    await api('POST','/api/sessions',{section_id:secId,slot_id:slotId,term,slot_type:type,sched_day:day,time_start:ts});
+    closeModal(); toast('Session started!','success'); loadAttPage(secId);
+  } catch(e){toast(e.message,'error');}
+}
+
+async function closeSession(sessId) {
+  if(!confirm('Close this session? Absent will be marked for all unscanned students.'))return;
+  clearInterval(_attTimer);
+  if(window._attKBListener){document.removeEventListener('keydown',window._attKBListener);window._attKBListener=null;}
+  try{const r=await api('PUT',`/api/sessions/${sessId}/close`);toast(`Session closed. ${r.absent_marked} absent marked.`,'info');loadAttPage(_attSectionId);}
+  catch(e){toast(e.message,'error');}
+}
+async function deleteAttSession(id) {
+  if(!confirm('Delete this session and all its attendance records?'))return;
+  try{await api('DELETE',`/api/sessions/${id}`);toast('Session deleted','info');loadAttPage(_attSectionId);}
+  catch(e){toast(e.message,'error');}
+}
+
+async function viewSession(sessId, secName) {
+  const [records, sess_arr] = await Promise.all([
+    api('GET',`/api/attendance/session/${sessId}`).catch(()=>[]),
+    api('GET',`/api/sessions?section_id=${_attSectionId}`).catch(()=>[]),
+  ]);
+  const sess = sess_arr.find(s=>s.id===sessId)||{};
+  showModal(`
+    <div class="modal-header"><div class="modal-title">📋 Session: ${secName} · ${fmtDate(sess.start_ts)}</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="table-wrap" style="max-height:60vh;overflow-y:auto"><table>
+      <thead><tr><th>Student No.</th><th>Full Name</th><th>Status</th><th>Time</th><th>Note</th><th>Edit</th></tr></thead>
+      <tbody>${records.map(r=>`<tr class="att-${r.status}">
+        <td class="text-xs text-mono">${r.student_no}</td>
+        <td style="font-size:12px">${r.full_name}</td>
+        <td><select style="width:100px;padding:3px 6px;font-size:11px" onchange="updateAtt(${r.id},this.value,document.getElementById('note-${r.id}').value)">
+          ${['present','late','excuse','absent'].map(s=>`<option value="${s}" ${r.status===s?'selected':''}>${s}</option>`).join('')}
+        </select></td>
+        <td class="text-xs">${r.timestamp?fmtTime(r.timestamp):'—'}</td>
+        <td><input id="note-${r.id}" value="${r.note||''}" placeholder="note…" style="width:120px;padding:3px 6px;font-size:11px" onblur="updateAtt(${r.id},document.querySelector('#modal-box tr:has(#note-${r.id}) select').value,this.value)"></td>
+        <td><button class="btn-primary btn-sm" style="padding:3px 8px" onclick="updateAtt(${r.id},document.querySelector('[id^=att-sel-]').value||'present',document.getElementById('note-${r.id}').value)">💾</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+    <div class="modal-footer"><button class="btn-secondary" onclick="closeModal()">Close</button></div>`, 'modal-lg');
+}
+
+async function updateAtt(id, status, note) {
+  try{await api('PUT',`/api/attendance/${id}`,{status,note:note||''});toast('Updated','success');}
+  catch(e){toast(e.message,'error');}
+}
+
+async function startSessionQuick(secId, day, type, ts, te, room) {
+  try {
+    const term = prompt('Term? Enter mt or ft','mt');
+    if(!term)return;
+    await api('POST','/api/sessions',{section_id:secId,term,slot_type:type,sched_day:day,time_start:ts,time_end:te,room});
+    toast('Session started!','success'); _attSectionId=secId; navigate('attendance');
+  }catch(e){toast(e.message,'error');}
+}
+
+/* ══════════════════════════════════════════════════
+   PAGE: GRADES
+══════════════════════════════════════════════════ */
+const MT_WEIGHTS={C1:20,C2:20,C3:20,C4:10,C5:10,C6:20};
+const FT_WEIGHTS={C1:15,C2:20,C3:20,C4:5,C5:5,C6:15};
+const COMP_LABELS={C1:'Written Works',C2:'Performance Tasks',C3:'Quarterly Assessment',C4:'Attendance',C5:'Recitation/Participation',C6:'Project/Output'};
+let _gradeSecId=null, _gradeTerm='mt', _gradeData={configs:{},scores:{},att:{}};
+
+async function pgGrades(c) {
+  if (sem_guard(c)) return;
+  const sections = await api('GET', `/api/sections?sem_id=${_activeSem.id}`).catch(()=>[]);
+  if (!_gradeSecId && sections.length) _gradeSecId=sections[0].id;
+
+  document.getElementById('topbar-actions').innerHTML = `
+    ${ctxBadge()}
+    <select id="gr-sec-sel" style="width:200px" onchange="_gradeSecId=parseInt(this.value);loadGradeSheet()">
+      ${sections.map(s=>`<option value="${s.id}" ${s.id===_gradeSecId?'selected':''}>${s.name} — ${s.subject_code}</option>`).join('')}
+    </select>
+    <div style="display:flex;gap:4px;flex-shrink:0">
+      <button id="gr-tab-mt" class="btn-${_gradeTerm==='mt'?'primary':'secondary'} btn-sm" onclick="_gradeTerm='mt';document.getElementById('gr-tab-mt').className='btn-primary btn-sm';document.getElementById('gr-tab-ft').className='btn-secondary btn-sm';loadGradeSheet()">MT</button>
+      <button id="gr-tab-ft" class="btn-${_gradeTerm==='ft'?'primary':'secondary'} btn-sm" onclick="_gradeTerm='ft';document.getElementById('gr-tab-mt').className='btn-secondary btn-sm';document.getElementById('gr-tab-ft').className='btn-primary btn-sm';loadGradeSheet()">FT</button>
+    </div>
+    <button class="btn-success btn-sm" onclick="saveGradeSheet()">💾 Save</button>`;
+
+  c.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text3)">⏳ Loading gradesheet…</div>';
+  if (_gradeSecId) loadGradeSheet();
+}
+
+let _gsEdits = {};
+async function loadGradeSheet() {
+  const c = document.getElementById('content'); if(!c) return;
+  _gsEdits = {};
+  const secId = _gradeSecId; const term = _gradeTerm;
+  const [students, configs, scores] = await Promise.all([
+    api('GET',`/api/students?section_id=${secId}`).catch(()=>[]),
+    api('GET',`/api/grades/config/${secId}/${term}`).catch(()=>[]),
+    api('GET',`/api/grades/scores/${secId}/${term}`).catch(()=>[]),
+  ]);
+  // Attendance per student
+  const attSummary = await api('GET',`/api/attendance/summary/${secId}?term=${term}`).catch(()=>[]);
+  const attMap = Object.fromEntries(attSummary.map(r=>[r.student_id,r]));
+  // Group configs by component
+  const compMap = {};
+  for(const comp of ['C1','C2','C3','C5','C6']) {
+    compMap[comp] = configs.filter(c=>c.component===comp).sort((a,b)=>a.col_order-b.col_order);
+  }
+  // Score lookup
+  const scoreKey = (stId,comp,ord) => `${stId}_${comp}_${ord}`;
+  const scoreMap = {};
+  scores.forEach(s=>{ scoreMap[scoreKey(s.student_id,s.component,s.col_order)]=s.score; });
+
+  const WEIGHTS = term==='mt' ? MT_WEIGHTS : FT_WEIGHTS;
+
+  function computeRow(stId) {
+    let rpg=0;
+    ['C1','C2','C3','C5','C6'].forEach(comp=>{
+      const cols=compMap[comp]; if(!cols.length) return;
+      let sum=0, count=0;
+      cols.forEach(col=>{
+        const sc=parseFloat(_gsEdits[scoreKey(stId,comp,col.col_order)]??scoreMap[scoreKey(stId,comp,col.col_order)]??0);
+        const mx=parseFloat(col.max_score||0);
+        if(mx>0){sum+=sc/mx*100;count++;}
+      });
+      const aprs=count?sum/count:0;
+      rpg+=aprs*(WEIGHTS[comp]/100);
+    });
+    // C4 attendance
+    const att=attMap[stId]||{total:0,present:0,late:0,excuse:0};
+    const attRate=att.total>0?((att.present+att.late+att.excuse)/att.total*100):0;
+    rpg+=attRate*(WEIGHTS['C4']/100);
+    return {rpg, attRate};
+  }
+
+  // Build header colspan map
+  const compHeaders = ['C1','C2','C3','C5','C6'].map(comp=>`
+    <th colspan="${Math.max(compMap[comp].length,1)+1}" style="background:rgba(59,130,246,.08);text-align:center;border-bottom:1px solid var(--border)">
+      ${comp} — ${COMP_LABELS[comp]}<br><span style="font-size:9px;font-weight:400;color:var(--text3)">${WEIGHTS[comp]}%</span>
+    </th>`).join('');
+  const c4Header = `<th colspan="2" style="background:rgba(34,197,94,.06);text-align:center;border-bottom:1px solid var(--border)">C4 — ${COMP_LABELS.C4}<br><span style="font-size:9px;font-weight:400;color:var(--text3)">${WEIGHTS.C4}%</span></th>`;
+
+  const subHeaders = ['C1','C2','C3','C5','C6'].map(comp=>{
+    const cols = compMap[comp];
+    return (cols.length?cols.map((col,i)=>`<th style="min-width:54px;cursor:pointer" title="Click to edit/delete" onclick="editGradeCol(${secId},'${term}','${comp}',${col.col_order},'${col.label}',${col.max_score})">${col.label}<br><span style="font-size:9px;color:var(--text3)">/${col.max_score}</span></th>`).join(''):'<th style="color:var(--text3)">—</th>')
+    + `<th title="Add column" style="cursor:pointer;color:var(--accent)" onclick="addGradeCol(${secId},'${term}','${comp}')">＋</th>`;
+  }).join('');
+  const c4SubHeader = `<th>Att%</th><th>WPRS</th>`;
+
+  const rows = students.map((st,idx)=>{
+    const {rpg,attRate}=computeRow(st.id);
+    const tx=transmute(rpg);
+    const rpgCols = ['C1','C2','C3','C5','C6'].map(comp=>{
+      const cols=compMap[comp];
+      const cells=(cols.length?cols.map(col=>{
+        const k=scoreKey(st.id,comp,col.col_order);
+        const val=_gsEdits[k]??scoreMap[k]??'';
+        return `<td><input type="number" value="${val}" min="0" max="${col.max_score}" step="0.5" style="width:54px" onchange="_gsEdits['${k}']=parseFloat(this.value)||0;refreshRPGRow(${st.id})"></td>`;
+      }).join(''):`<td></td>`) + '<td></td>';
+      return cells;
+    }).join('');
+    const c4Att = attRate.toFixed(1);
+    const c4Wprs = (attRate*WEIGHTS.C4/100).toFixed(2);
+    return `<tr id="gs-row-${st.id}">
+      <td class="col-sticky" style="font-size:11px;font-weight:600;min-width:140px">${st.full_name.split(',')[0]||st.full_name}</td>
+      <td class="col-sticky" style="left:140px;font-size:10px;min-width:60px">${st.student_no}</td>
+      ${rpgCols}
+      <td style="text-align:center;font-size:11px">${c4Att}%</td>
+      <td style="text-align:center;font-size:11px">${c4Wprs}</td>
+      <td id="gs-rpg-${st.id}" style="font-weight:800;font-family:var(--mono);color:var(--accent)">${rpg.toFixed(2)}</td>
+      <td id="gs-gr-${st.id}" class="${remarkClass(tx.remarks)}">${tx.grade}</td>
+      <td id="gs-rm-${st.id}" style="font-size:10px" class="${remarkClass(tx.remarks)}">${tx.remarks}</td>
+    </tr>`;
+  }).join('');
+
+  // Horizontal scrollbar hint at top
+  const html=`
+    <div style="font-size:11px;color:var(--text3);margin-bottom:6px">💡 Scroll horizontally to see all columns. <strong>Click any column header</strong> to edit or delete it.</div>
+    <div class="gs-outer" id="gs-outer">
+      <table class="gs-table">
+        <thead>
+          <tr>
+            <th class="col-sticky" rowspan="2" style="min-width:140px;left:0;z-index:7">Full Name</th>
+            <th class="col-sticky" rowspan="2" style="min-width:60px;left:140px;z-index:7">Stud. No.</th>
+            ${compHeaders}${c4Header}
+            <th rowspan="2" style="min-width:60px">RPG</th>
+            <th rowspan="2" style="min-width:40px">Grade</th>
+            <th rowspan="2" style="min-width:80px">Remarks</th>
+          </tr>
+          <tr>${subHeaders}${c4SubHeader}</tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+  document.getElementById('content').innerHTML = html;
+
+  // Mirror scrollbar at top
+  const gsOuter=document.getElementById('gs-outer');
+  if(gsOuter){
+    gsOuter.addEventListener('scroll',()=>{});
+  }
+}
+
+function refreshRPGRow(stId) {
+  const WEIGHTS = _gradeTerm==='mt' ? MT_WEIGHTS : FT_WEIGHTS;
+  // Quick re-compute from current _gsEdits and DOM
+  // We'll just mark as pending; full refresh happens on save
+  const rpgEl=document.getElementById(`gs-rpg-${stId}`);
+  if(rpgEl) rpgEl.style.color='var(--yellow)'; // Mark as unsaved
+}
+
+async function saveGradeSheet() {
+  if (!Object.keys(_gsEdits).length) { toast('No changes to save','info'); return; }
+  const rows=[];
+  for(const [key,score] of Object.entries(_gsEdits)){
+    const [stId,comp,ord]=key.split('_');
+    rows.push({section_id:_gradeSecId,student_id:parseInt(stId),term:_gradeTerm,component:comp,col_order:parseInt(ord),score});
+  }
+  try{await api('POST','/api/grades/scores/bulk',{rows});_gsEdits={};toast(`Saved ${rows.length} score(s)!`,'success');loadGradeSheet();}
+  catch(e){toast(e.message,'error');}
+}
+
+async function addGradeCol(secId, term, comp) {
+  showModal(`
+    <div class="modal-header"><div class="modal-title">➕ Add ${COMP_LABELS[comp]} Item</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="form-row cols-2">
+      <div class="form-group"><label>Column Label</label><input id="gc-label" placeholder="e.g. Quiz 1"></div>
+      <div class="form-group"><label>Max Score</label><input id="gc-max" type="number" placeholder="e.g. 50" min="1"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveGradeCol(${secId},'${term}','${comp}')">💾 Add</button>
+    </div>`, 'modal-sm');
+}
+
+async function saveGradeCol(secId, term, comp) {
+  const label=document.getElementById('gc-label').value.trim(),max=parseFloat(document.getElementById('gc-max').value);
+  if(!label||!max){toast('Label and max score required','error');return;}
+  const existing=await api('GET',`/api/grades/config/${secId}/${term}`).catch(()=>[]);
+  const compCols=existing.filter(c=>c.component===comp);
+  const nextOrd=compCols.length?(Math.max(...compCols.map(c=>c.col_order))+1):0;
+  const WEIGHTS=term==='mt'?MT_WEIGHTS:FT_WEIGHTS;
+  const allCols=[...existing,{section_id:secId,term,component:comp,label,weight:WEIGHTS[comp],max_score:max,col_order:nextOrd}];
+  try{await api('POST','/api/grades/config',{section_id:secId,term,columns:allCols});closeModal();toast('Column added!','success');loadGradeSheet();}
+  catch(e){toast(e.message,'error');}
+}
+
+async function editGradeCol(secId, term, comp, ord, label, max) {
+  showModal(`
+    <div class="modal-header"><div class="modal-title">✏️ Edit/Delete Column</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div class="form-row cols-2">
+      <div class="form-group"><label>Label</label><input id="ec-label" value="${label}"></div>
+      <div class="form-group"><label>Max Score</label><input id="ec-max" type="number" value="${max}"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-danger" onclick="deleteGradeCol(${secId},'${term}','${comp}',${ord})">🗑️ Delete</button>
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="updateGradeCol(${secId},'${term}','${comp}',${ord})">💾 Save</button>
+    </div>`, 'modal-sm');
+}
+async function updateGradeCol(secId, term, comp, ord) {
+  const label=document.getElementById('ec-label').value.trim(),max=parseFloat(document.getElementById('ec-max').value);
+  if(!label||!max){toast('Required fields','error');return;}
+  const existing=await api('GET',`/api/grades/config/${secId}/${term}`).catch(()=>[]);
+  const updated=existing.map(c=>(c.component===comp&&c.col_order===ord)?{...c,label,max_score:max}:c);
+  try{await api('POST','/api/grades/config',{section_id:secId,term,columns:updated});closeModal();toast('Updated!','success');loadGradeSheet();}
+  catch(e){toast(e.message,'error');}
+}
+async function deleteGradeCol(secId, term, comp, ord) {
+  if(!confirm('Delete this column? All scores in it will also be lost.'))return;
+  const existing=await api('GET',`/api/grades/config/${secId}/${term}`).catch(()=>[]);
+  const updated=existing.filter(c=>!(c.component===comp&&c.col_order===ord));
+  try{await api('POST','/api/grades/config',{section_id:secId,term,columns:updated});closeModal();toast('Deleted','info');loadGradeSheet();}
+  catch(e){toast(e.message,'error');}
+}
+
+/* ══════════════════════════════════════════════════
+   PAGE: REPORTS
+══════════════════════════════════════════════════ */
+async function pgReports(c) {
+  if (sem_guard(c)) return;
+  const sections = await api('GET', `/api/sections?sem_id=${_activeSem.id}`).catch(()=>[]);
+  c.innerHTML = `
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">📋 Attendance Report</div>
+        <div class="form-group"><label>Section</label>
+          <select id="rep-att-sec">${sections.map(s=>`<option value="${s.id}">${s.name} — ${s.subject_code}</option>`).join('')}</select>
+        </div>
+        <div class="form-group"><label>Term</label>
+          <select id="rep-att-term"><option value="">All Terms</option><option value="mt">Midterm</option><option value="ft">Final Term</option></select>
+        </div>
+        <button class="btn-primary" onclick="exportAttCSV()">📥 Export CSV</button>
+      </div>
+      <div class="card">
+        <div class="card-title">📊 Grades Report</div>
+        <div class="form-group"><label>Section</label>
+          <select id="rep-gr-sec">${sections.map(s=>`<option value="${s.id}">${s.name} — ${s.subject_code}</option>`).join('')}</select>
+        </div>
+        <button class="btn-primary" onclick="exportGradesCSV()">📥 Export CSV</button>
+      </div>
+    </div>
+    <div class="card mt-3">
+      <div class="card-title">⚠️ Absence Leaders ${ctxBadge()}</div>
+      <div id="rep-leaders"><div style="color:var(--text3)">Loading…</div></div>
+    </div>`;
+  api('GET',`/api/reports/absence-leaders/${_activeSem.id}`).then(rows=>{
+    const el=document.getElementById('rep-leaders');
+    if(!el) return;
+    if(!rows.length){el.innerHTML='<div style="color:var(--text3);font-size:13px">No absences recorded.</div>';return;}
+    el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>#</th><th>Student</th><th>Section</th><th>Subject</th><th>Absences</th></tr></thead><tbody>
+    ${rows.map((r,i)=>`<tr><td>${i+1}</td><td><div style="font-weight:600">${r.full_name}</div><div class="text-xs text-muted">${r.student_no}</div></td><td><span class="badge badge-blue">${r.section_name}</span></td><td>${r.subject_code}</td><td><span class="badge badge-${r.absences>=5?'red':r.absences>=3?'yellow':'gray'}">${r.absences}</span></td></tr>`).join('')}
+    </tbody></table></div>`;
+  });
+}
+
+async function exportAttCSV() {
+  const secId=document.getElementById('rep-att-sec').value, term=document.getElementById('rep-att-term').value;
+  const [students,sessions,att] = await Promise.all([
+    api('GET',`/api/students?section_id=${secId}`),
+    api('GET',`/api/sessions?section_id=${secId}`),
+    api('GET',`/api/attendance/summary/${secId}${term?'?term='+term:''}`),
+  ]);
+  const attMap=Object.fromEntries(att.map(r=>[r.student_id,r]));
+  const sec=(await api('GET',`/api/sections?sem_id=${_activeSem.id}`)).find(s=>s.id==secId);
+  let csv=`Section,${sec?.name}\nSubject,${sec?.subject_code}\nSemester,${_activeSem?.year} ${_activeSem?.label}\n\n`;
+  csv+=`Student No,Full Name,Present,Late,Excuse,Absent,Total,Attendance%\n`;
+  students.forEach(st=>{
+    const a=attMap[st.id]||{};
+    const rate=a.total>0?(((a.present||0)+(a.late||0)+(a.excuse||0))/a.total*100).toFixed(1):'0';
+    csv+=`${st.student_no},${st.full_name},${a.present||0},${a.late||0},${a.excuse||0},${a.absent||0},${a.total||0},${rate}%\n`;
+  });
+  downloadBlob(csv,`attendance_${sec?.name}_${term||'all'}.csv`,'text/csv');
+  toast('Attendance exported!','success');
+}
+
+async function exportGradesCSV() {
+  const secId=parseInt(document.getElementById('rep-gr-sec').value);
+  const sec=(await api('GET',`/api/sections?sem_id=${_activeSem.id}`)).find(s=>s.id===secId);
+  const students=await api('GET',`/api/students?section_id=${secId}`);
+  let csv=`Section,${sec?.name}\nSubject,${sec?.subject_code}\n\nStudent No,Full Name,MT RPG,MT Grade,FT RPG,FT Grade\n`;
+  // Simplified grades export
+  for(const st of students){
+    const [mts,fts,mc,fc,ma,fa]=await Promise.all([
+      api('GET',`/api/grades/scores/${secId}/mt`),api('GET',`/api/grades/scores/${secId}/ft`),
+      api('GET',`/api/grades/config/${secId}/mt`),api('GET',`/api/grades/config/${secId}/ft`),
+      api('GET',`/api/attendance/summary/${secId}?term=mt`),api('GET',`/api/attendance/summary/${secId}?term=ft`),
+    ]);
+    const mtRPG=calcRPG(st.id,mts,mc,ma,'mt'),ftRPG=calcRPG(st.id,fts,fc,fa,'ft');
+    csv+=`${st.student_no},${st.full_name},${mtRPG.toFixed(2)},${transmute(mtRPG).grade},${ftRPG.toFixed(2)},${transmute(ftRPG).grade}\n`;
+  }
+  downloadBlob(csv,`grades_${sec?.name}.csv`,'text/csv');
+  toast('Grades exported!','success');
+}
+
+function calcRPG(stId,scores,configs,attSummary,term){
+  const WEIGHTS=term==='mt'?MT_WEIGHTS:FT_WEIGHTS;
+  const compMap={};
+  for(const comp of ['C1','C2','C3','C5','C6']){compMap[comp]=configs.filter(c=>c.component===comp).sort((a,b)=>a.col_order-b.col_order);}
+  const sm=Object.fromEntries(scores.map(s=>[`${s.student_id}_${s.component}_${s.col_order}`,s.score]));
+  let rpg=0;
+  ['C1','C2','C3','C5','C6'].forEach(comp=>{
+    const cols=compMap[comp];if(!cols.length)return;
+    let sum=0,cnt=0;
+    cols.forEach(col=>{const sc=parseFloat(sm[`${stId}_${comp}_${col.col_order}`]||0),mx=parseFloat(col.max_score||0);if(mx>0){sum+=sc/mx*100;cnt++;}});
+    rpg+=(cnt?sum/cnt:0)*(WEIGHTS[comp]/100);
+  });
+  const att=(attSummary||[]).find(a=>a.student_id===stId)||{total:0,present:0,late:0,excuse:0};
+  const rate=att.total>0?((att.present+att.late+att.excuse)/att.total*100):0;
+  rpg+=rate*(WEIGHTS.C4/100);
+  return rpg;
+}
+
+function downloadBlob(content, name, type) {
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();
+}
+
+/* ══════════════════════════════════════════════════
+   PAGE: SETTINGS
+══════════════════════════════════════════════════ */
+async function pgSettings(c) {
+  const u = _currentUser;
+  c.innerHTML = `
+    <div style="max-width:600px;display:flex;flex-direction:column;gap:14px">
+      <div class="card">
+        <div class="card-title">👤 Account Settings</div>
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;padding:12px;background:var(--surface2);border-radius:10px">
+          <div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800">${(u.full_name||u.name||'?').charAt(0)}</div>
+          <div><div style="font-size:16px;font-weight:700">${u.full_name||u.name}</div>
+          <div style="font-size:12px;color:var(--text2)">${u.role==='admin'?'Administrator':'Student'} · @${u.username||u.student_no}</div></div>
+        </div>
+        <div class="form-group"><label>Display Name</label><input id="set-name" value="${u.full_name||u.name||''}"></div>
+        ${u.role==='admin'?`<div class="form-group"><label>Username</label><input id="set-uname" value="${u.username||''}"></div>`:''}
+        <button class="btn-primary btn-sm" onclick="saveProfile()">💾 Update Profile</button>
+      </div>
+      <div class="card">
+        <div class="card-title">🔑 Change Password</div>
+        <div class="form-group"><label>Current Password</label><input id="set-cur" type="password"></div>
+        <div class="form-group"><label>New Password</label><input id="set-new" type="password"></div>
+        <div class="form-group"><label>Confirm New Password</label><input id="set-cnf" type="password"></div>
+        <button class="btn-primary btn-sm" onclick="changePassword()">🔒 Change Password</button>
+      </div>
+      ${u.role==='admin'?`
+      <div class="card">
+        <div class="card-title">👥 Admin Accounts</div>
+        <div id="admin-list" style="margin-bottom:10px"></div>
+        <button class="btn-primary btn-sm" onclick="showAddAdmin()">➕ Add Admin</button>
+        <div class="divider"></div>
+        <div style="font-size:11px;color:var(--text3)">💡 Each admin has their own completely separate Academic Years, sections, students, and data.</div>
+      </div>`:''}
+    </div>`;
+  if(u.role==='admin') loadAdmins();
+}
+
+async function loadAdmins() {
+  const el=document.getElementById('admin-list'); if(!el) return;
+  const admins=await api('GET','/api/admin/users').catch(()=>[]);
+  el.innerHTML=admins.map(a=>`<div style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--surface2);border-radius:8px;margin-bottom:6px">
+    <div style="flex:1"><div style="font-weight:600">${a.name}</div><div style="font-size:11px;color:var(--text2)">@${a.username}</div></div>
+    ${a.id!==_currentUser.id?`<button class="btn-danger btn-sm btn-icon" onclick="deleteAdmin(${a.id})">🗑️</button>`:`<span class="badge badge-green">You</span>`}
+  </div>`).join('');
+}
+
+async function saveProfile() {
+  const name=document.getElementById('set-name').value.trim();
+  const uname=document.getElementById('set-uname')?.value.trim();
+  if(!name){toast('Name required','error');return;}
+  try{await api('PUT','/api/auth/update-profile',{name,username:uname||_currentUser.username});_currentUser.name=name;toast('Profile updated!','success');}
+  catch(e){toast(e.message,'error');}
+}
+async function changePassword() {
+  const cur=document.getElementById('set-cur').value,nw=document.getElementById('set-new').value,cnf=document.getElementById('set-cnf').value;
+  if(!cur||!nw){toast('All fields required','error');return;}
+  if(nw!==cnf){toast('Passwords do not match','error');return;}
+  try{await api('PUT','/api/auth/change-password',{current:cur,new:nw});toast('Password changed!','success');['set-cur','set-new','set-cnf'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});}
+  catch(e){toast(e.message,'error');}
+}
+function showAddAdmin() {
+  showModal(`
+    <div class="modal-header"><div class="modal-title">➕ New Admin Account</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:12px;padding:8px;background:var(--surface2);border-radius:8px">
+      ℹ️ The new admin will have a completely blank slate — no AYs, sections, or students shared with other admins.
+    </div>
+    <div class="form-group"><label>Full Name</label><input id="na-name" placeholder="Prof. Juan Dela Cruz"></div>
+    <div class="form-group"><label>Username</label><input id="na-uname" placeholder="jdelacruz"></div>
+    <div class="form-group"><label>Password</label><input id="na-pw" type="password"></div>
+    <div class="modal-footer">
+      <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveAdmin()">💾 Create</button>
+    </div>`, 'modal-md');
+}
+async function saveAdmin() {
+  const name=document.getElementById('na-name').value.trim(),uname=document.getElementById('na-uname').value.trim(),pw=document.getElementById('na-pw').value;
+  if(!name||!uname||!pw){toast('All fields required','error');return;}
+  try{await api('POST','/api/admin/users',{name,username:uname,password:pw});closeModal();toast('Admin created!','success');loadAdmins();}
+  catch(e){toast(e.message,'error');}
+}
+async function deleteAdmin(id) {
+  if(!confirm('Delete this admin account?'))return;
+  try{await api('DELETE',`/api/admin/users/${id}`);toast('Deleted','info');loadAdmins();}
+  catch(e){toast(e.message,'error');}
+}
+
+/* ══════════════════════════════════════════════════
+   STUDENT PORTAL PAGES
+══════════════════════════════════════════════════ */
+async function pgStudentDashboard(c) {
+  const st = _currentUser;
+  const students = await api('GET', '/api/students').catch(()=>[]);
+  const myData = students[0] || {};
+  const sections = await api('GET', `/api/sections`).catch(()=>[]);
+  const sec = sections[0]||{};
+  const tag = myData.uid ? myData : null;
+
+  // grade configs + scores + attendance
+  const secId = myData.section_id;
+  const att = await api('GET', `/api/attendance/student/${myData.id}`).catch(()=>[]);
+  const total=att.length||1, present=att.filter(a=>a.status==='present').length,
+        late=att.filter(a=>a.status==='late').length, excuse=att.filter(a=>a.status==='excuse').length,
+        absent=att.filter(a=>a.status==='absent').length;
+  const rate=Math.round(((present+late+excuse)/total)*100);
+
+  c.innerHTML = `
+    <div style="background:linear-gradient(135deg,var(--surface2),var(--surface3));border:1px solid var(--border2);border-radius:16px;padding:20px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <div style="width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:900;flex-shrink:0">${(myData.full_name||'S').charAt(0)}</div>
+        <div style="flex:1">
+          <div style="font-size:20px;font-weight:800">${myData.full_name||'—'}</div>
+          <div style="font-size:12px;color:var(--text2)">${myData.student_no||'—'} · ${myData.year_level||'—'}</div>
+          <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+            <span class="badge badge-blue">📚 ${sec.name||'—'} — ${sec.subject_code||'—'}</span>
+            <span class="badge badge-${tag?'green':'orange'}">${tag?'📡 Card Registered':'📡 No Card Registered'}</span>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;color:var(--text2)">Professor</div>
+          <div style="font-size:13px;font-weight:600">${sec.professor && sec.professor !== 'Administrator' ? sec.professor : sec.professor||'—'}</div>
+        </div>
+      </div>
+    </div>
+    <div class="grid-4 mb-4">
+      <div class="stat-card"><div class="stat-icon green">✅</div><div><div class="stat-value">${present+late}</div><div class="stat-label">Present/Late</div></div></div>
+      <div class="stat-card"><div class="stat-icon blue">📋</div><div><div class="stat-value">${excuse}</div><div class="stat-label">Excused</div></div></div>
+      <div class="stat-card"><div class="stat-icon red">❌</div><div><div class="stat-value">${absent}</div><div class="stat-label">Absent</div></div></div>
+      <div class="stat-card"><div class="stat-icon ${rate>=75?'green':rate>=60?'yellow':'red'}">📊</div><div><div class="stat-value">${rate}%</div><div class="stat-label">Att. Rate</div></div></div>
+    </div>
+    <div class="grid-3">
+      <button class="btn-secondary" style="padding:18px;justify-content:center;border-radius:12px;flex-direction:column;gap:4px;font-size:14px" onclick="navigate('my-attendance')">⏱️<br>My Attendance</button>
+      <button class="btn-secondary" style="padding:18px;justify-content:center;border-radius:12px;flex-direction:column;gap:4px;font-size:14px" onclick="navigate('my-scores')">📊<br>My Scores & Grades</button>
+      <button class="btn-secondary" style="padding:18px;justify-content:center;border-radius:12px;flex-direction:column;gap:4px;font-size:14px" onclick="navigate('my-card')">📡<br>My RFID Card</button>
+    </div>`;
+}
+
+async function pgMyAttendance(c) {
+  const students = await api('GET', '/api/students').catch(()=>[]);
+  const myData = students[0];
+  if (!myData) return;
+  const att = await api('GET', `/api/attendance/student/${myData.id}`).catch(()=>[]);
+  const total=att.length||1, present=att.filter(a=>a.status==='present').length,
+        late=att.filter(a=>a.status==='late').length, excuse=att.filter(a=>a.status==='excuse').length,
+        absent=att.filter(a=>a.status==='absent').length;
+  const rate=Math.round(((present+late+excuse)/total)*100);
+  c.innerHTML = `
+    <div class="grid-4 mb-4">
+      <div class="stat-card"><div class="stat-icon green">✅</div><div><div class="stat-value">${present}</div><div class="stat-label">Present</div></div></div>
+      <div class="stat-card"><div class="stat-icon yellow">⏰</div><div><div class="stat-value">${late}</div><div class="stat-label">Late</div></div></div>
+      <div class="stat-card"><div class="stat-icon blue">📋</div><div><div class="stat-value">${excuse}</div><div class="stat-label">Excused</div></div></div>
+      <div class="stat-card"><div class="stat-icon red">❌</div><div><div class="stat-value">${absent}</div><div class="stat-label">Absent</div></div></div>
+    </div>
+    <div class="card mb-3" style="padding:12px 16px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="flex:1"><div class="progress-bar" style="height:10px"><div class="progress-fill" style="width:${rate}%;background:${rate>=75?'var(--green)':rate>=60?'var(--yellow)':'var(--red)'}"></div></div></div>
+        <strong style="font-size:16px;color:${rate>=75?'var(--green)':rate>=60?'var(--yellow)':'var(--red)'}">${rate}% Attendance Rate</strong>
+      </div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Date</th><th>Day</th><th>Type</th><th>Term</th><th>Status</th><th>Note</th></tr></thead>
+      <tbody>${att.length===0?`<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--text3)">No attendance records yet.</td></tr>`:
+        att.map(a=>`<tr class="att-${a.status}">
+          <td class="text-xs">${fmtDate(a.start_ts)}</td>
+          <td class="text-xs">${a.sched_day||'—'}</td>
+          <td>${a.slot_type==='lab'?'🔬 Lab':'📖 Lec'}</td>
+          <td><span class="badge badge-${a.term==='mt'?'blue':'green'}">${(a.term||'').toUpperCase()}</span></td>
+          <td><span class="badge badge-${a.status==='present'?'green':a.status==='late'?'yellow':a.status==='excuse'?'blue':'red'}">${a.status}</span></td>
+          <td class="text-xs text-muted">${a.note||'—'}</td>
+        </tr>`).join('')}</tbody>
+    </table></div>`;
+}
+
+async function pgMyScores(c) {
+  c.innerHTML = '<div style="text-align:center;padding:32px;color:var(--text3)">⏳ Loading your scores…</div>';
+  const d = await api('GET', '/api/grades/my-scores').catch(()=>null);
+  if (!d) { c.innerHTML='<div class="empty-state"><div class="es-icon">📊</div><div class="es-title">No grade data yet</div></div>'; return; }
+  const {student, configs, scores, att} = d;
+  const scoreMap = Object.fromEntries(scores.map(s=>[`${s.term}_${s.component}_${s.col_order}`,s.score]));
+
+  function renderTerm(term) {
+    const WEIGHTS = term==='mt' ? MT_WEIGHTS : FT_WEIGHTS;
+    const termConfigs = configs.filter(c=>c.term===term);
+    const compMap = {};
+    for(const comp of ['C1','C2','C3','C5','C6']) compMap[comp]=termConfigs.filter(c=>c.component===comp).sort((a,b)=>a.col_order-b.col_order);
+    let rpg=0;
+    const compRows = ['C1','C2','C3','C5','C6'].map(comp=>{
+      const cols=compMap[comp]; if(!cols.length) return '';
+      let sum=0,cnt=0;
+      const itemRows=cols.map(col=>{
+        const sc=parseFloat(scoreMap[`${term}_${comp}_${col.col_order}`]||0);
+        const mx=parseFloat(col.max_score||0); const prs=mx>0?sc/mx*100:0;
+        if(mx>0){sum+=prs;cnt++;}
+        return `<tr><td style="padding:5px 10px;font-size:12px">${col.label}</td>
+          <td style="padding:5px 10px;text-align:center;font-family:var(--mono);font-size:12px">${sc} / ${mx}</td>
+          <td style="padding:5px 10px;text-align:center;font-size:12px;color:${prs>=75?'var(--green)':prs>=60?'var(--yellow)':'var(--red)'}">${prs.toFixed(1)}%</td></tr>`;
+      }).join('');
+      const aprs=cnt?sum/cnt:0; const wprs=aprs*WEIGHTS[comp]/100;
+      rpg+=wprs;
+      return `
+        <tr style="background:var(--surface2)"><th colspan="3" style="padding:6px 10px;font-size:11px;font-weight:700;text-align:left">${comp} — ${COMP_LABELS[comp]} <span style="font-weight:400;color:var(--text3)">(${WEIGHTS[comp]}%)</span></th></tr>
+        <tr style="background:var(--surface3)"><th style="padding:3px 10px;font-size:10px">Item</th><th style="padding:3px 10px;font-size:10px;text-align:center">Score</th><th style="padding:3px 10px;font-size:10px;text-align:center">PRS%</th></tr>
+        ${itemRows}
+        <tr style="background:rgba(59,130,246,.05)"><td style="padding:5px 10px;font-size:11px;font-weight:700">APRS</td><td colspan="2" style="text-align:center;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--accent)">${aprs.toFixed(2)}%</td></tr>
+        <tr style="background:rgba(59,130,246,.03)"><td style="padding:5px 10px;font-size:11px;font-weight:700">WPRS (×${WEIGHTS[comp]}%)</td><td colspan="2" style="text-align:center;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--accent)">${wprs.toFixed(2)}</td></tr>`;
+    }).filter(Boolean).join('');
+    // C4 Attendance
+    const a=att[term]||{present:0,total:0};
+    const attRate=a.total>0?(a.present/a.total*100):0;
+    const c4wprs=attRate*WEIGHTS.C4/100;
+    rpg+=c4wprs;
+    const tx=transmute(rpg);
+    return `
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:12px 16px;background:${term==='mt'?'rgba(59,130,246,.08)':'rgba(34,197,94,.06)'};border-bottom:1px solid var(--border)">
+          <div style="font-size:15px;font-weight:800">${term==='mt'?'📘 Midterm':'📗 Final Term'}</div>
+        </div>
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse">
+          ${compRows}
+          <tr style="background:var(--surface2)"><th colspan="3" style="padding:6px 10px;font-size:11px;font-weight:700;text-align:left">C4 — Attendance <span style="font-weight:400;color:var(--text3)">(${WEIGHTS.C4}%)</span></th></tr>
+          <tr><td style="padding:5px 10px;font-size:12px">Attendance Rate</td><td colspan="2" style="text-align:center;font-size:12px;color:${attRate>=75?'var(--green)':'var(--red)'}">${attRate.toFixed(1)}%</td></tr>
+          <tr style="background:rgba(59,130,246,.05)"><td style="padding:5px 10px;font-size:11px;font-weight:700">WPRS</td><td colspan="2" style="text-align:center;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--accent)">${c4wprs.toFixed(2)}</td></tr>
+          <tr style="background:rgba(239,68,68,.06);border-top:2px solid var(--border)">
+            <td style="padding:8px 10px;font-size:13px;font-weight:800">RPG</td>
+            <td colspan="2" style="text-align:center;font-family:var(--mono);font-size:18px;font-weight:900;color:var(--accent)">${rpg.toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 10px;font-size:12px;font-weight:700">Numerical Grade</td>
+            <td colspan="2" style="text-align:center;font-family:var(--mono);font-size:24px;font-weight:900;color:${parseFloat(tx.grade)<=2.5?'var(--green)':parseFloat(tx.grade)<=3?'var(--yellow)':'var(--red)'}">${tx.grade}</td>
+          </tr>
+          <tr>
+            <td style="padding:4px 10px;font-size:12px">Remarks</td>
+            <td colspan="2" style="text-align:center;font-size:13px;font-weight:700" class="${remarkClass(tx.remarks)}">${tx.remarks}</td>
+          </tr>
+        </table></div>
+      </div>`;
+  }
+
+  c.innerHTML = `
+    <div class="grid-2">${renderTerm('mt')}${renderTerm('ft')}</div>`;
+}
+
+async function pgMyCard(c) {
+  const students = await api('GET', '/api/students').catch(()=>[]);
+  const myData = students[0];
+  if (!myData) { c.innerHTML='<div class="empty-state"><div class="es-icon">❌</div><div class="es-title">No student record</div></div>'; return; }
+  const hasCard = !!myData.uid;
+  c.innerHTML = `
+    <div style="max-width:460px;margin:0 auto">
+      <div class="card" style="text-align:center;padding:32px">
+        <div style="font-size:48px;margin-bottom:16px">${hasCard?'📡':'⚠️'}</div>
+        <div style="font-size:18px;font-weight:800;margin-bottom:6px">${hasCard?'RFID / NFC Card Registered':'No Card Registered'}</div>
+        ${hasCard?`<div style="font-family:var(--mono);font-size:20px;color:var(--accent);margin:12px 0;padding:10px;background:var(--surface2);border-radius:8px">${myData.uid}</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:20px">This is your card's UID. Keep it safe.</div>
+        <button class="btn-danger btn-sm" onclick="unregisterMyCard(${myData.tag_id})">🔄 Change / Remove Card</button>`
+        :`<div style="color:var(--text2);margin-bottom:20px;font-size:13px">Register your RFID or NFC card to enable automatic attendance.</div>
+        <div style="margin-bottom:10px">
+          <input id="mc-uid" placeholder="Scan or enter card UID" style="text-align:center;margin-bottom:8px">
+          <button class="btn-primary w-full" style="justify-content:center" onclick="registerMyCard(${myData.id})">📡 Register Card</button>
+          ${('NDEFReader' in window)?`<button class="btn-secondary w-full mt-2" style="justify-content:center" onclick="nfcScanMyCard(${myData.id})">📱 Use NFC</button>`:''}
+        </div>`}
+      </div>
+    </div>`;
+}
+
+async function registerMyCard(stId) {
+  const uid=(document.getElementById('mc-uid')?.value||'').trim().toUpperCase();
+  if(uid.length<4){toast('Enter valid UID','error');return;}
+  try{await api('POST','/api/rfid',{uid,student_id:stId,self_registered:true});toast('Card registered!','success');pgMyCard(document.getElementById('content'));}
+  catch(e){toast(e.message,'error');}
+}
+async function unregisterMyCard(tagId) {
+  if(!confirm('Remove your card? You will need to register again to use attendance scanning.'))return;
+  try{await api('DELETE',`/api/rfid/${tagId}`);toast('Card removed','info');pgMyCard(document.getElementById('content'));}
+  catch(e){toast(e.message,'error');}
+}
+async function nfcScanMyCard(stId) {
+  try {
+    const r=new NDEFReader();await r.scan();toast('📡 Tap your card…','info');
+    r.onreading=async(e)=>{const uid=e.serialNumber.replace(/:/g,'').toUpperCase();document.getElementById('mc-uid').value=uid;await registerMyCard(stId);};
+  }catch(e){toast('NFC: '+e.message,'error');}
+}
+
+/* ══════════════════════════════════════════════════
+   BOOT
+══════════════════════════════════════════════════ */
+(async()=>{
+  // Ensure correct initial visibility
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('rfid-gate').style.display = 'none';
+  document.getElementById('app').style.display = 'none';
+
+  const ok = await tryAutoLogin();
+  if (!ok) {
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('login-screen').classList.remove('hidden');
+  }
+})();
+</script>
+</body>
+</html>
