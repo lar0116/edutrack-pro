@@ -233,6 +233,17 @@ tr:hover td{background:rgba(255,255,255,.02)}
 #mobile-menu-btn{display:none}
 @media(max-width:768px){#mobile-menu-btn{display:flex}}
 
+/* ── ATTENDANCE RESPONSIVE ─────────────── */
+@media(max-width:768px){
+  .att-desktop-sessions{display:none!important}
+  .att-mobile-sessions{display:block!important}
+  #att-page-body .card{border-radius:10px}
+}
+@media(min-width:769px){
+  .att-desktop-sessions{display:block}
+  .att-mobile-sessions{display:none!important}
+}
+
 /* ── GRADE COLORS ───────────────────────── */
 .rem-excellent{color:#a78bfa}
 .rem-verygood{color:var(--accent)}
@@ -1886,80 +1897,168 @@ async function pgAttendance(c) {
   if (sem_guard(c)) return;
   const sections = await api('GET', `/api/sections?sem_id=${_activeSem.id}`).catch(()=>[]);
 
-  // topbar
-  const topActions = document.getElementById('topbar-actions');
-  topActions.innerHTML = `${ctxBadge()} <select id="att-sec-sel" style="width:200px" onchange="loadAttPage(this.value)">
-    <option value="">Select Section…</option>
-    ${sections.map(s=>`<option value="${s.id}" ${_attSectionId==s.id?'selected':''}>${s.name} — ${s.subject_code}</option>`).join('')}
-  </select>`;
+  // Move section selector into the page itself (not topbar) — better for mobile
+  document.getElementById('topbar-actions').innerHTML = '';
 
   if (!_attSectionId && sections.length>0) _attSectionId = sections[0].id;
-  document.querySelector('#att-sec-sel').value = _attSectionId||'';
-  loadAttPage(_attSectionId);
+
+  // Section picker at top of content
+  c.innerHTML = `
+    <div style="margin-bottom:14px">
+      <label style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px">Section</label>
+      <select id="att-sec-sel" style="width:100%;max-width:400px;padding:10px 12px;font-size:14px;font-weight:600;border-radius:8px"
+        onchange="_attSectionId=parseInt(this.value);loadAttPage(this.value)">
+        <option value="">— Select Section —</option>
+        ${sections.map(s=>`<option value="${s.id}" ${_attSectionId==s.id?'selected':''}>${s.name} — ${s.subject_code}</option>`).join('')}
+      </select>
+    </div>
+    <div id="att-page-body"><div style="text-align:center;padding:32px;color:var(--text3)">⏳ Loading…</div></div>`;
+
+  if (_attSectionId) loadAttPage(_attSectionId);
 }
 
 async function loadAttPage(secId) {
   if (!secId) return;
-  _attSectionId = secId;
-  document.querySelector('#att-sec-sel')?.value && (document.querySelector('#att-sec-sel').value=secId);
-  const c = document.getElementById('content');
+  _attSectionId = parseInt(secId);
+  const sel = document.getElementById('att-sec-sel');
+  if (sel) sel.value = secId;
+
+  const body = document.getElementById('att-page-body');
+  if (!body) return;
+  body.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3)">⏳ Loading…</div>';
+
   const [sec_arr, sessions] = await Promise.all([
     api('GET', `/api/sections?sem_id=${_activeSem.id}`).catch(()=>[]),
     api('GET', `/api/sessions?section_id=${secId}`).catch(()=>[]),
   ]);
   const sec = sec_arr.find(s=>s.id==secId);
-  if (!sec) return;
+  if (!sec) { body.innerHTML='<div class="empty-state"><div class="es-icon">❌</div><div class="es-title">Section not found</div></div>'; return; }
 
-  // Check if there's an open session
-  const openSess = sessions.find(s=>s.is_open);
+  const openSess    = sessions.find(s=>s.is_open);
+  const DAYS        = ['SUN','MON','TUE','WED','THURS','FRI','SAT'];
+  const today       = DAYS[new Date().getDay()];
+  const todaySlots  = (sec.slots||[]).filter(s=>s.day===today);
+  const nfcAvail    = ('NDEFReader' in window);
 
-  // Today's slots
-  const DAYS=['SUN','MON','TUE','WED','THURS','FRI','SAT'];
-  const today = DAYS[new Date().getDay()];
-  const todaySlots = (sec.slots||[]).filter(s=>s.day===today);
+  body.innerHTML = `
 
-  c.innerHTML = `
-    <!-- Active Session Banner -->
+    <!-- ══ ACTIVE SESSION BANNER ══ -->
     ${openSess ? `
-    <div class="session-active">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <div style="flex:1">
-          <div style="font-weight:800;font-size:14px;color:var(--green)">● Session Active — ${sec.name} ${openSess.slot_type==='lab'?'🔬 Lab':'📖 Lecture'}</div>
-          <div style="font-size:12px;color:var(--text2)">${openSess.sched_day} · ${openSess.time_start} · ${openSess.term?.toUpperCase()} Term</div>
+    <div style="background:rgba(34,197,94,.08);border:2px solid rgba(34,197,94,.4);border-radius:14px;padding:16px;margin-bottom:14px">
+
+      <!-- Status row -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        <div>
+          <div style="font-weight:800;font-size:15px;color:var(--green)">● LIVE — ${sec.name}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">
+            ${openSess.slot_type==='lab'?'🔬 Lab':'📖 Lecture'}
+            &nbsp;·&nbsp; ${openSess.sched_day||today}
+            &nbsp;·&nbsp; ${openSess.time_start||'—'}
+            &nbsp;·&nbsp; <span class="badge badge-${openSess.term==='mt'?'blue':'green'}">${openSess.term?.toUpperCase()}</span>
+          </div>
         </div>
-        <div class="session-timer" id="att-timer">00:00</div>
-        <button class="btn-danger btn-sm" onclick="closeSession(${openSess.id})">⏹ Close Session</button>
+        <div class="session-timer" id="att-timer" style="font-size:28px">00:00</div>
       </div>
-      <!-- RFID scan area -->
-      <div style="margin-top:10px;padding:10px;background:rgba(34,197,94,.08);border-radius:8px;font-size:12px;color:var(--text2)">
-        📡 RFID auto-scanning active. USB reader will record attendance automatically.
-        ${('NDEFReader' in window)?`<button class="btn-success btn-sm" onclick="startAttNFC(${openSess.id})" style="margin-left:8px">📱 NFC Scan</button>`:''}
+
+      <!-- RFID scan status -->
+      <div style="background:rgba(34,197,94,.06);border:1px solid rgba(34,197,94,.2);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--text2)">
+        📡 <strong>RFID scanning active</strong> — USB reader records attendance automatically.
+        <div id="att-last-scan" style="margin-top:4px;font-size:12px;color:var(--green)"></div>
+      </div>
+
+      <!-- Action buttons — full width on mobile -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${nfcAvail?`
+        <button id="att-nfc-btn" onclick="toggleAttNFC(${openSess.id})"
+          style="flex:1;min-width:140px;padding:12px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;background:rgba(34,197,94,.12);color:var(--green);border:1px solid rgba(34,197,94,.4);display:flex;align-items:center;justify-content:center;gap:6px">
+          📱 Start NFC Scan
+        </button>`:''}
+        <button onclick="closeSession(${openSess.id})"
+          style="flex:1;min-width:140px;padding:12px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,.4);display:flex;align-items:center;justify-content:center;gap:6px">
+          ⏹ Close Session
+        </button>
       </div>
     </div>` : ''}
 
-    <!-- Today's Classes -->
+    <!-- ══ TODAY'S SCHEDULE ══ -->
     <div class="card mb-3">
-      <div class="card-title">📅 Today's Classes (${today})</div>
-      ${todaySlots.length===0 ? `<div style="color:var(--text3);font-size:13px">No scheduled classes today for ${sec.name}.</div>` :
-        todaySlots.map(slot=>`
-        <div style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px">
-          <div style="flex:1">
-            <div style="font-weight:700">${slot.slot_type==='lab'?'🔬 Lab':'📖 Lecture'} · ${slot.day} ${slot.time_start}–${slot.time_end}</div>
-            <div style="font-size:11px;color:var(--text2)">Room: ${slot.room||'—'}</div>
+      <div class="card-title" style="font-size:14px">📅 Today — <strong>${today}</strong></div>
+
+      ${todaySlots.length === 0 ? `
+        <div style="color:var(--text3);font-size:13px;margin-bottom:8px">No scheduled classes for ${sec.name} today.</div>
+        ${!openSess ? `
+        <button onclick="startSessionModal(${sec.id},null,'${today}','lecture','','','')"
+          style="width:100%;padding:13px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;background:var(--surface3);color:var(--text);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;gap:8px">
+          ➕ Start Manual Session
+        </button>` : ''}
+      ` : todaySlots.map(slot=>`
+        <div style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+            <div>
+              <div style="font-weight:700;font-size:13px">${slot.slot_type==='lab'?'🔬 Lab':'📖 Lecture'}</div>
+              <div style="font-size:12px;color:var(--text2);margin-top:2px">
+                ${slot.time_start||'—'} – ${slot.time_end||'—'} &nbsp;·&nbsp; ${slot.room||'No room'}
+              </div>
+            </div>
+            ${!openSess ? `
+            <button onclick="startSessionModal(${sec.id},${slot.id},'${slot.day}','${slot.slot_type}','${slot.time_start||''}','${slot.time_end||''}','${slot.room||''}')"
+              style="padding:10px 20px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;background:rgba(34,197,94,.15);color:var(--green);border:1px solid rgba(34,197,94,.4);white-space:nowrap;min-width:110px;text-align:center">
+              ▶️ Start
+            </button>` : `<span class="badge badge-green" style="font-size:12px;padding:6px 12px">● In Progress</span>`}
           </div>
-          ${!openSess?`<button class="btn-success btn-sm" onclick="startSessionModal(${sec.id},${slot.id},'${slot.day}','${slot.slot_type}','${slot.time_start}','${slot.time_end}','${slot.room||''}')">▶️ Start</button>`:
-            `<span class="badge badge-green">● Session in progress</span>`}
         </div>`).join('')}
-      ${!openSess && todaySlots.length===0?`<button class="btn-secondary btn-sm" onclick="startSessionModal(${sec.id},null,'${today}','lecture','','','')">▶️ Start Manual Session</button>`:''}
     </div>
 
-    <!-- Session Records -->
+    <!-- ══ SESSION RECORDS ══ -->
     <div class="card">
-      <div class="card-title">📋 Session Records</div>
-      <div class="table-wrap"><table>
-        <thead><tr><th>Date</th><th>Day</th><th>Type</th><th>Term</th><th>Time</th><th>P</th><th>L</th><th>E</th><th>A</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody>${sessions.length===0?`<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--text3)">No sessions yet.</td></tr>`:
-          sessions.map(s=>{
+      <div class="card-title" style="font-size:14px">📋 Session Records
+        <span style="font-size:11px;font-weight:400;color:var(--text3);margin-left:8px">${sessions.length} total</span>
+      </div>
+
+      ${sessions.length===0 ? `<div style="color:var(--text3);font-size:13px;padding:12px 0">No sessions recorded yet.</div>` : `
+
+      <!-- Mobile: card view -->
+      <div class="att-mobile-sessions" style="display:none">
+        ${sessions.slice(0,20).map(s=>{
+          const cnt=s.counts||{};
+          return `<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:8px">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+              <div>
+                <div style="font-size:12px;font-weight:700">${fmtDate(s.start_ts)} · ${s.sched_day||'—'}</div>
+                <div style="font-size:11px;color:var(--text2);margin-top:2px">
+                  ${s.slot_type==='lab'?'🔬 Lab':'📖 Lec'}
+                  &nbsp;·&nbsp; ${s.time_start||'—'}
+                  &nbsp;·&nbsp; <span class="badge badge-${s.term==='mt'?'blue':'green'}" style="font-size:10px">${s.term?.toUpperCase()}</span>
+                  ${s.is_open?'&nbsp;<span class="badge badge-green" style="font-size:10px">● Open</span>':''}
+                </div>
+              </div>
+              <div style="display:flex;gap:6px">
+                <button onclick="viewSession(${s.id},'${sec.name}')" style="padding:5px 8px;border-radius:6px;font-size:12px;cursor:pointer;background:var(--surface3);color:var(--text);border:1px solid var(--border)">👁️</button>
+                <button onclick="deleteAttSession(${s.id})" style="padding:5px 8px;border-radius:6px;font-size:12px;cursor:pointer;background:var(--red-dim);color:var(--red);border:1px solid rgba(239,68,68,.3)">🗑️</button>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;text-align:center;background:var(--surface2);border-radius:6px;padding:6px">
+              <div><div style="font-size:16px;font-weight:800;color:var(--green)">${cnt.present||0}</div><div style="font-size:10px;color:var(--text3)">Present</div></div>
+              <div><div style="font-size:16px;font-weight:800;color:var(--yellow)">${cnt.late||0}</div><div style="font-size:10px;color:var(--text3)">Late</div></div>
+              <div><div style="font-size:16px;font-weight:800;color:var(--accent)">${cnt.excuse||0}</div><div style="font-size:10px;color:var(--text3)">Excuse</div></div>
+              <div><div style="font-size:16px;font-weight:800;color:var(--red)">${cnt.absent||0}</div><div style="font-size:10px;color:var(--text3)">Absent</div></div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <!-- Desktop: table view -->
+      <div class="att-desktop-sessions">
+        <div class="table-wrap"><table>
+          <thead><tr>
+            <th>Date</th><th>Day</th><th>Type</th><th>Term</th><th>Time</th>
+            <th style="color:var(--green)">P</th>
+            <th style="color:var(--yellow)">L</th>
+            <th style="color:var(--accent)">E</th>
+            <th style="color:var(--red)">A</th>
+            <th>Status</th><th>Actions</th>
+          </tr></thead>
+          <tbody>${sessions.map(s=>{
             const cnt=s.counts||{};
             return `<tr data-sess-id="${s.id}">
               <td class="text-xs">${fmtDate(s.start_ts)}</td>
@@ -1967,22 +2066,70 @@ async function loadAttPage(secId) {
               <td>${s.slot_type==='lab'?'🔬':'📖'}</td>
               <td><span class="badge badge-${s.term==='mt'?'blue':'green'}">${s.term?.toUpperCase()}</span></td>
               <td class="text-xs">${s.time_start||'—'}</td>
-              <td style="color:var(--green)" data-count="present">${cnt.present||0}</td>
-              <td style="color:var(--yellow)" data-count="late">${cnt.late||0}</td>
-              <td style="color:var(--accent)" data-count="excuse">${cnt.excuse||0}</td>
-              <td style="color:var(--red)" data-count="absent">${cnt.absent||0}</td>
+              <td style="color:var(--green);text-align:center" data-count="present">${cnt.present||0}</td>
+              <td style="color:var(--yellow);text-align:center" data-count="late">${cnt.late||0}</td>
+              <td style="color:var(--accent);text-align:center" data-count="excuse">${cnt.excuse||0}</td>
+              <td style="color:var(--red);text-align:center" data-count="absent">${cnt.absent||0}</td>
               <td>${s.is_open?'<span class="badge badge-green">● Open</span>':'<span class="badge badge-gray">Closed</span>'}</td>
               <td><div class="flex gap-2">
-                <button class="btn-secondary btn-sm btn-icon" onclick="viewSession(${s.id},'${sec.name}')" title="View/Edit">👁️</button>
-                <button class="btn-danger btn-sm btn-icon" onclick="deleteAttSession(${s.id})" title="Delete">🗑️</button>
+                <button class="btn-secondary btn-sm btn-icon" onclick="viewSession(${s.id},'${sec.name}')">👁️</button>
+                <button class="btn-danger btn-sm btn-icon" onclick="deleteAttSession(${s.id})">🗑️</button>
               </div></td>
             </tr>`;
           }).join('')}</tbody>
-      </table></div>
+        </table></div>
+      </div>`}
     </div>`;
 
+  // Show correct view based on screen width
+  attApplyResponsive();
+
   // Start timer if open session
-  if (openSess) { _attSession = openSess; startAttTimer(openSess.start_ts); startAttKeyboard(openSess.id); }
+  if (openSess) {
+    _attSession = openSess;
+    startAttTimer(openSess.start_ts);
+    startAttKeyboard(openSess.id);
+  }
+}
+
+function attApplyResponsive() {
+  const isMobile = window.innerWidth <= 768;
+  document.querySelectorAll('.att-mobile-sessions').forEach(el=>el.style.display=isMobile?'block':'none');
+  document.querySelectorAll('.att-desktop-sessions').forEach(el=>el.style.display=isMobile?'none':'block');
+}
+
+// NFC toggle for attendance
+let _attNFCActive2 = false;
+async function toggleAttNFC(sessId) {
+  const btn = document.getElementById('att-nfc-btn');
+  if (_attNFCActive2) {
+    _attNFCActive2 = false;
+    if (btn) btn.innerHTML = '📱 Start NFC Scan';
+    return;
+  }
+  try {
+    _attNFCActive2 = true;
+    if (btn) btn.innerHTML = '⏹ Stop NFC';
+    const reader = new NDEFReader();
+    window._attNFCReader2 = reader;
+    await reader.scan();
+    reader.onreading = async (e) => {
+      if (!_attNFCActive2) return;
+      const uid = e.serialNumber.replace(/:/g,'').toUpperCase();
+      // Cooldown 3s same card
+      if (window._attLastNFCUID === uid && Date.now()-window._attLastNFCTime < 3000) return;
+      window._attLastNFCUID = uid;
+      window._attLastNFCTime = Date.now();
+      await processRFIDScan(uid, sessId);
+      const last = document.getElementById('att-last-scan');
+      if (last) last.textContent = `Last scan: ${uid} at ${new Date().toLocaleTimeString()}`;
+      setTimeout(()=>refreshSessionCounts(sessId), 500);
+    };
+  } catch(e) {
+    _attNFCActive2 = false;
+    if (btn) btn.innerHTML = '📱 Start NFC Scan';
+    toast('NFC error: '+e.message,'error');
+  }
 }
 
 function startAttTimer(startTs) {
@@ -2743,9 +2890,29 @@ async function pgSettings(c) {
         <button class="btn-primary btn-sm" onclick="showAddAdmin()">➕ Add Admin</button>
         <div class="divider"></div>
         <div style="font-size:11px;color:var(--text3)">💡 Each admin has their own completely separate Academic Years, sections, students, and data.</div>
+      </div>
+      <div class="card" style="border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.04)">
+        <div class="card-title">💾 Database Backup & Restore</div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:14px;padding:10px;background:var(--yellow-dim);border-radius:8px;border:1px solid rgba(245,158,11,.3)">
+          ⚠️ <strong>Data Loss Warning:</strong> On Railway free plan, data resets on every redeploy.
+          Download a backup before redeploying, then restore after.
+        </div>
+        <div id="db-info-area" style="margin-bottom:14px;font-size:12px;color:var(--text3)">Loading DB info…</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-primary" onclick="downloadBackup()" style="flex:1;min-width:140px;justify-content:center;padding:10px">
+            📥 Download Backup
+          </button>
+          <label style="flex:1;min-width:140px">
+            <div class="btn-secondary" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:var(--radius);cursor:pointer;font-size:13px;font-weight:600;border:1px solid var(--border);text-align:center">
+              📤 Restore Backup
+            </div>
+            <input type="file" accept=".json" onchange="uploadRestore(this)" style="display:none">
+          </label>
+        </div>
+        <div id="restore-status" style="margin-top:10px;font-size:12px;display:none"></div>
       </div>`:''}
     </div>`;
-  if(u.role==='admin') loadAdmins();
+  if(u.role==='admin') { loadAdmins(); loadDBInfo(); }
 }
 
 async function loadAdmins() {
@@ -3112,6 +3279,82 @@ async function pgMyCard(c) {
     document.getElementById('login-screen').classList.remove('hidden');
   }
 })();
+
+/* ── BACKUP & RESTORE ───────────────────── */
+async function loadDBInfo() {
+  try {
+    const info = await api('GET', '/api/admin/db-info');
+    const el = document.getElementById('db-info-area');
+    if (!el) return;
+    el.innerHTML = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px">
+        ${Object.entries(info.tables).map(([k,v])=>`
+          <div style="background:var(--surface2);border-radius:6px;padding:6px 10px;display:flex;justify-content:space-between;align-items:center">
+            <span style="color:var(--text3);font-size:11px">${k}</span>
+            <span style="font-weight:700;font-family:var(--mono)">${v}</span>
+          </div>`).join('')}
+      </div>
+      <div style="margin-top:8px;color:var(--text3)">DB size: <strong>${info.db_size_kb} KB</strong> &nbsp;·&nbsp; Path: <code style="font-size:10px">${info.db_path}</code></div>`;
+  } catch(e) {
+    const el = document.getElementById('db-info-area');
+    if (el) el.textContent = 'Could not load DB info: ' + e.message;
+  }
+}
+
+async function downloadBackup() {
+  try {
+    toast('⏳ Preparing backup…', 'info');
+    const resp = await fetch('/api/admin/backup', {
+      headers: { 'Authorization': 'Bearer ' + _token }
+    });
+    if (!resp.ok) throw new Error('Backup failed: ' + resp.status);
+    const blob = await resp.blob();
+    const cd = resp.headers.get('Content-Disposition') || '';
+    const fname = cd.match(/filename=(.+)/)?.[1] || 'edutrack_backup.json';
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fname;
+    a.click();
+    toast('✅ Backup downloaded: ' + fname, 'success');
+  } catch(e) { toast('❌ ' + e.message, 'error'); }
+}
+
+async function uploadRestore(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const status = document.getElementById('restore-status');
+  if (status) { status.style.display='block'; status.textContent='⏳ Reading file…'; status.style.color='var(--text2)'; }
+
+  try {
+    const text = await file.text();
+    const backup = JSON.parse(text);
+    if (!backup.tables && !backup.sqlite_b64) throw new Error('Invalid backup file format');
+
+    if (!confirm(`Restore backup from ${backup.timestamp||'unknown date'}?\n\nThis will OVERWRITE all current data. This cannot be undone.`)) {
+      if (status) status.style.display='none';
+      input.value='';
+      return;
+    }
+
+    if (status) status.textContent='⏳ Restoring…';
+    const res = await api('POST', '/api/admin/restore', backup);
+    if (status) {
+      status.textContent = '✅ ' + (res.message || 'Restored successfully! Reloading in 3 seconds…');
+      status.style.color = 'var(--green)';
+    }
+    toast('✅ Database restored! Reloading…', 'success');
+    setTimeout(() => { localStorage.removeItem('et_token'); window.location.reload(); }, 3000);
+  } catch(e) {
+    if (status) { status.textContent='❌ Restore failed: '+e.message; status.style.color='var(--red)'; }
+    toast('❌ Restore failed: '+e.message, 'error');
+  }
+  input.value='';
+}
+
+// Responsive handler for attendance page
+window.addEventListener('resize', () => {
+  if (typeof attApplyResponsive === 'function') attApplyResponsive();
+});
 </script>
 </body>
 </html>
