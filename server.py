@@ -725,3 +725,81 @@ def spa(path):
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=False, host='0.0.0.0', port=port)
+
+# ── DATABASE BACKUP & RESTORE ─────────────────────────────────────────────
+import io, json, base64
+
+@app.route('/api/admin/backup', methods=['GET'])
+@admin_required
+def backup_database():
+    """Download the entire database as a JSON backup."""
+    try:
+        backup = {'version': 2, 'timestamp': datetime.now().isoformat(), 'tables': {}}
+        tables = ['users','academic_years','semesters','sections','schedule_slots',
+                  'students','rfid_tags','sessions','attendance','grade_configs','grade_scores']
+        for table in tables:
+            try:
+                rows = Q(f"SELECT * FROM {table}")
+                backup['tables'][table] = rows
+            except:
+                backup['tables'][table] = []
+        
+        # Also backup the raw SQLite file as base64
+        with open(DB_PATH, 'rb') as f:
+            backup['sqlite_b64'] = base64.b64encode(f.read()).decode()
+        
+        filename = f"edutrack_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        buf = io.BytesIO(json.dumps(backup, indent=2, default=str).encode())
+        buf.seek(0)
+        from flask import Response
+        return Response(
+            buf.read(),
+            mimetype='application/json',
+            headers={'Content-Disposition': f'attachment; filename={filename}'}
+        )
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/admin/restore', methods=['POST'])
+@admin_required
+def restore_database():
+    """Restore database from a JSON backup file."""
+    try:
+        backup = request.json
+        if not backup or 'tables' not in backup:
+            return jsonify({'error': 'Invalid backup format'}), 400
+        
+        # If sqlite_b64 is present, restore the raw SQLite file
+        if 'sqlite_b64' in backup:
+            db_bytes = base64.b64decode(backup['sqlite_b64'])
+            # Close existing connections first
+            with open(DB_PATH, 'wb') as f:
+                f.write(db_bytes)
+            return jsonify({'ok': True, 'method': 'sqlite_restore', 'message': 'Database restored from SQLite backup'})
+        
+        return jsonify({'error': 'No SQLite backup data found in file'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/admin/db-info', methods=['GET'])
+@admin_required
+def db_info():
+    """Get database stats."""
+    try:
+        stats = {}
+        for table in ['users','academic_years','semesters','sections','students',
+                      'rfid_tags','sessions','attendance','grade_configs','grade_scores']:
+            try:
+                count = Q(f"SELECT COUNT(*) AS c FROM {table}", one=True)['c']
+                stats[table] = count
+            except:
+                stats[table] = 0
+        
+        db_size = os.path.getsize(DB_PATH) if os.path.exists(DB_PATH) else 0
+        return jsonify({
+            'db_path': DB_PATH,
+            'db_size_kb': round(db_size/1024, 1),
+            'tables': stats
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
